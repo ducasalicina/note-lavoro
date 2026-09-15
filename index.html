@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f3efe9">
+<title>Note di lavoro</title>
+<link rel="stylesheet" href="stile.css">
+</head>
+<body>
+
+<div class="app">
+
+  <!-- Fascia 1 — cattura. Galleggia sopra il contenuto (vedi 1a del mockup). -->
+  <header class="fascia fascia--cattura">
+    <div class="marchio">note</div>
+
+    <div class="cattura">
+      <div class="campo">
+        <input id="cattura" class="campo__input" autofocus autocomplete="off"
+               autocapitalize="sentences" spellcheck="false"
+               aria-autocomplete="list" aria-controls="suggerimenti" aria-expanded="false"
+               placeholder="Annota una richiesta, come la diresti a voce">
+      </div>
+      <!-- Compare solo digitando # o @. Non ruba mai l'invio. -->
+      <div id="suggerimenti" class="suggerimenti" role="listbox" aria-label="Suggerimenti" hidden></div>
+      <!-- Etichette indovinate: informative, non bloccano mai la digitazione. -->
+      <div id="anteprima" class="anteprima" hidden></div>
+    </div>
+
+    <div class="azioni">
+      <!-- Stato della sincronizzazione: discreto, fuori dai piedi, sempre leggibile. -->
+      <button id="stato-sync" class="stato-sync" type="button" title="Impostazioni e sincronizzazione">non configurato</button>
+      <button id="cerca" class="bottone-icona" type="button" title="Cerca" aria-label="Cerca" aria-expanded="false">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+          <circle cx="6.8" cy="6.8" r="4.6"></circle><line x1="10.3" y1="10.3" x2="14" y2="14"></line>
+        </svg>
+      </button>
+      <button id="impostazioni" class="bottone-icona" type="button" title="Impostazioni" aria-label="Impostazioni">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <circle cx="8" cy="8" r="2.4"></circle>
+          <path d="M8 1.4v1.8M8 12.8v1.8M14.6 8h-1.8M3.2 8H1.4M12.7 3.3l-1.3 1.3M4.6 11.4l-1.3 1.3M12.7 12.7l-1.3-1.3M4.6 4.6L3.3 3.3"></path>
+        </svg>
+      </button>
+      <div class="dispositivo" id="dispositivo" title="Dispositivo">pc</div>
+    </div>
+  </header>
+
+  <div id="riga-ricerca" class="ricerca" hidden>
+    <svg class="ricerca__icona" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+      <circle cx="6.8" cy="6.8" r="4.6"></circle><line x1="10.3" y1="10.3" x2="14" y2="14"></line>
+    </svg>
+    <input id="ricerca" class="ricerca__input" type="search" autocomplete="off"
+           placeholder="Cerca fra tutti gli stati, compreso il chiuso…">
+    <span class="ricerca__esc">esc per chiudere</span>
+  </div>
+
+  <!-- Fascia 2 — scadenze. Galleggia come la prima. -->
+  <section id="fascia-scadenze" class="fascia fascia--scadenze" aria-label="Scadenze"></section>
+
+  <!-- Barra stati: su telefono è il selettore di lista, su desktop sparisce. -->
+  <nav id="barra-stati" class="barra-stati" aria-label="Stati"></nav>
+
+  <!-- Fascia 3 — contenuto. A pieno bordo sotto le due fasce galleggianti. -->
+  <main id="contenuto" class="contenuto"></main>
+
+</div>
+
+<!-- Dettaglio: dove si corregge quello che il classificatore ha indovinato male. -->
+<div id="dettaglio" class="dettaglio" role="dialog" aria-modal="true" aria-label="Dettaglio della nota" hidden>
+  <div id="dettaglio-fondo" class="dettaglio__fondo"></div>
+  <div id="dettaglio-foglio" class="dettaglio__foglio"></div>
+</div>
+
+<!-- Impostazioni: raggiungibili ma fuori dai piedi. -->
+<div id="config" class="dettaglio" role="dialog" aria-modal="true" aria-label="Impostazioni" hidden>
+  <div id="config-fondo" class="dettaglio__fondo"></div>
+  <div id="config-foglio" class="dettaglio__foglio"></div>
+</div>
+
+<!-- Nessun dialogo di conferma: ogni azione lascia 5 secondi per annullare. -->
+<div id="annulla" class="annulla" role="status" hidden>
+  <span id="annulla-testo" class="annulla__testo"></span>
+  <button id="annulla-bottone" class="annulla__bottone" type="button">Annulla</button>
+</div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>

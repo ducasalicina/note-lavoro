@@ -1,0 +1,896 @@
+/* stile.css — foglio derivato dal design "Tre fasce" (artboard 1a desktop, 1c telefono).
+   I valori qui sotto vengono dal mockup: non inventarne di nuovi, aggiungerli al design. */
+
+:root {
+  /* Superfici */
+  --sfondo:        #f3efe9;
+  --carta:         #ffffff;
+  --carta-quieta:  #faf6f1;
+  --quieto-1:      #f5f1ea;
+  --quieto-2:      #f1ece4;
+  --quieto-3:      #efe9e1;
+  --quieto-4:      #f4efe7;
+  --quieto-5:      #f3ede5;
+
+  /* Bordi */
+  --bordo:         #e4dcd1;
+  --bordo-tenue:   #e8e1d7;
+  --bordo-carta:   #eae3da;
+  --bordo-forte:   #e0d8ce;
+  --bordo-scuro:   #cdc5b9;
+
+  /* Inchiostro */
+  --testo:         #262220;
+  --testo-2:       #3b352f;
+  --testo-3:       #3d3830;
+  --tenue:         #5c554d;
+  --tenue-2:       #6f6760;
+
+  /* Accento: solo urgenza. Il terracotta segnala il ritardo e nulla più. */
+  --ritardo-sfondo: #f9e3d9;
+  --ritardo-linea:  #f0cdba;
+  --ritardo-testo:  #8f3b1c;
+  --ritardo-forte:  #96391a;
+  --ritardo-pieno:  #b04a26;
+
+  /* Angoli ampi, ombre morbide */
+  --r-guscio: 22px;
+  --r-fascia: 18px;
+  --r-grande: 16px;
+  --r-medio:  14px;
+  --r-piccolo: 8px;
+  --r-minimo:  4px;
+  --ombra-fascia: 0 2px 10px rgba(38, 34, 32, .05);
+  --ombra-carta:  0 1px 1px rgba(38, 34, 32, .035);
+
+  --font: Helvetica, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, Menlo, Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  background: var(--sfondo);
+  color: var(--testo);
+  font-family: var(--font);
+  -webkit-text-size-adjust: 100%;
+}
+
+input, button { font-family: inherit; }
+
+/* Nessuna animazione oltre i 150ms. */
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+}
+
+.app {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 13px;
+}
+
+/* ─── Fasce galleggianti ─────────────────────────────────────────────────── */
+
+.fascia {
+  background: var(--carta);
+  border-radius: var(--r-fascia);
+  box-shadow: var(--ombra-fascia);
+  margin-bottom: 11px;
+}
+
+/* Fascia 1 — cattura */
+
+.fascia--cattura {
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+  padding: 16px 18px;
+}
+
+.marchio {
+  flex: none;
+  font: 500 15px/40px var(--font);
+  color: var(--testo);
+}
+
+.cattura {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Il campo di cattura è il primo elemento della pagina: una tendina verso l'alto
+   finirebbe fuori schermo, quindi scende sotto il campo galleggiando sulla fascia. */
+.suggerimenti {
+  position: absolute;
+  top: 46px;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  max-height: 232px;
+  overflow-y: auto;
+  padding: 5px;
+  background: var(--carta);
+  border: 1px solid var(--bordo);
+  border-radius: var(--r-medio);
+  box-shadow: 0 6px 20px rgba(38, 34, 32, .14);
+}
+
+.suggerimento {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 7px 9px;
+  border-radius: var(--r-piccolo);
+  cursor: pointer;
+}
+.suggerimento:hover { background: var(--quieto-4); }
+.suggerimento.is-attivo { background: var(--quieto-3); }
+
+.suggerimento__valore {
+  flex: none;
+  font: 600 12.5px var(--font);
+  color: var(--testo);
+}
+.suggerimento__spiega {
+  flex: 1;
+  min-width: 0;
+  font: 400 11.5px var(--font);
+  color: var(--tenue-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.campo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 40px;
+  padding: 0 13px;
+  border: 1px solid var(--bordo);
+  border-radius: var(--r-medio);
+  background: var(--carta-quieta);
+}
+
+.campo__input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-size: 13.5px;
+  color: var(--testo);
+}
+
+.campo:focus-within { border-color: var(--bordo-scuro); }
+
+.anteprima {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding-left: 2px;
+}
+
+.etichetta {
+  padding: 2px 7px;
+  border-radius: var(--r-minimo);
+  font: 500 11.5px var(--font);
+  background: var(--quieto-2);
+  color: var(--tenue-2);
+}
+.etichetta--categoria { background: #e6dfd4; color: var(--testo-2); }
+.etichetta--scadenza  { background: #e6dfd4; color: var(--testo-2); }
+.etichetta--priorita  { background: var(--ritardo-sfondo); color: var(--ritardo-testo); }
+.etichetta--piattaforma {
+  background: transparent;
+  border: 1px solid var(--bordo);
+  color: var(--tenue);
+}
+
+.azioni {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 2px;
+}
+
+.bottone-icona {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid var(--bordo);
+  border-radius: var(--r-piccolo);
+  background: var(--carta);
+  color: #5c574f;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.bottone-icona svg { width: 16px; height: 16px; }
+.bottone-icona:hover { background: var(--quieto-4); }
+.bottone-icona[aria-expanded="true"] { background: var(--quieto-3); border-color: var(--bordo-scuro); }
+
+/* Indicatore di sincronizzazione: discreto, e cliccabile per aprire le impostazioni. */
+.stato-sync {
+  flex: none;
+  padding: 4px 9px;
+  border: 1px solid var(--bordo);
+  border-radius: var(--r-piccolo);
+  background: var(--carta-quieta);
+  font: 400 11.5px var(--font);
+  color: var(--tenue-2);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.stato-sync:hover { background: var(--quieto-3); }
+.stato-sync--spento { color: var(--tenue); border-style: dashed; }
+.stato-sync--coda { color: var(--testo-2); background: var(--quieto-3); }
+.stato-sync--guasto {
+  color: var(--ritardo-testo);
+  background: var(--ritardo-sfondo);
+  border-color: var(--ritardo-linea);
+}
+
+.interruttore {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  font: 13px/1.4 var(--font);
+  color: var(--testo-2);
+  cursor: pointer;
+}
+.interruttore input { margin: 2px 0 0; flex: none; }
+
+.dettaglio__via.pericolo { align-self: stretch; text-align: center; }
+.dettaglio__via.is-armato {
+  background: var(--ritardo-pieno);
+  border-color: var(--ritardo-pieno);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.dispositivo {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--testo);
+  color: var(--sfondo);
+  font: 600 11.5px var(--font);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-transform: uppercase;
+}
+
+/* Riga ricerca */
+
+.ricerca {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: var(--quieto-4);
+  border-radius: var(--r-grande);
+  margin-bottom: 11px;
+  color: #5c574f;
+}
+.ricerca__icona { width: 15px; height: 15px; flex: none; }
+.ricerca__input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font: 13px var(--font);
+  color: var(--testo-2);
+}
+.ricerca__esc { font: 11px var(--mono); color: var(--tenue-2); flex: none; }
+
+/* Fascia 2 — scadenze */
+
+/* Una riga sola: conta e filtra, non elenca. */
+.fascia--scadenze { padding: 7px 9px; }
+
+.contatori {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+.contatori__sep { color: var(--bordo-scuro); font-size: 12px; }
+
+.contatore {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 5px 10px;
+  border: 0;
+  border-radius: var(--r-piccolo);
+  background: transparent;
+  cursor: pointer;
+}
+.contatore:hover { background: var(--quieto-4); }
+
+.contatore__numero {
+  font: 600 13px var(--font);
+  font-variant-numeric: tabular-nums;
+  color: var(--testo);
+}
+.contatore__nome { font: 400 12.5px var(--font); color: var(--tenue-2); }
+
+/* Il terracotta è solo del ritardo, qui come altrove. */
+.contatore--ritardo .contatore__numero { color: var(--ritardo-forte); }
+.contatore--ritardo .contatore__nome { color: var(--ritardo-testo); }
+
+.contatore.is-attivo { background: var(--testo); }
+.contatore.is-attivo .contatore__numero,
+.contatore.is-attivo .contatore__nome { color: var(--carta-quieta); }
+.contatore--ritardo.is-attivo { background: var(--ritardo-pieno); }
+
+/* ─── Barra stati (telefono) ─────────────────────────────────────────────── */
+
+.barra-stati {
+  display: flex;
+  gap: 4px;
+  padding: 10px 0 0;
+}
+
+.stato-tab {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 7px 2px 8px;
+  border: 0;
+  border-radius: var(--r-medio);
+  background: var(--quieto-3);
+  cursor: pointer;
+}
+.stato-tab__nome {
+  font: 500 12px var(--font);
+  color: var(--tenue-2);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.stato-tab__conteggio {
+  font: 400 11px var(--font);
+  font-variant-numeric: tabular-nums;
+  color: var(--tenue-2);
+}
+.stato-tab[aria-selected="true"] { background: var(--testo); }
+.stato-tab[aria-selected="true"] .stato-tab__nome { color: var(--carta-quieta); }
+.stato-tab[aria-selected="true"] .stato-tab__conteggio { color: #a89f94; }
+.stato-tab--attesa { border: 1px dashed var(--bordo-scuro); }
+
+/* ─── Fascia 3 — contenuto ───────────────────────────────────────────────── */
+
+.contenuto { padding: 12px 0 18px; }
+
+.colonne {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+
+.colonna {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.colonna__intestazione {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 3px 8px;
+  border-bottom: 1.5px solid var(--bordo-forte);
+}
+.colonna__nome { font: 600 13px var(--font); color: var(--testo-2); }
+.colonna__conteggio {
+  font: 400 12.5px var(--font);
+  font-variant-numeric: tabular-nums;
+  color: var(--tenue-2);
+}
+
+/* Limite WIP superato. Niente terracotta: quello segnala il ritardo e nulla più. */
+.colonna__conteggio--oltre,
+.stato-tab__conteggio--oltre {
+  font-weight: 600;
+  color: var(--carta-quieta);
+  background: var(--testo);
+  border-radius: var(--r-minimo);
+  padding: 1px 6px;
+}
+/* Sulla scheda già scura del telefono si inverte, se no sparisce. */
+.stato-tab[aria-selected="true"] .stato-tab__conteggio--oltre {
+  color: var(--testo);
+  background: var(--carta-quieta);
+}
+
+.colonna--dafare .colonna__intestazione { border-bottom-color: var(--bordo-scuro); }
+.colonna--corso  .colonna__intestazione { border-bottom-color: var(--testo); }
+/* attesa: stessa famiglia di colori, tratteggio per tenerla visivamente a parte */
+.colonna--attesa .colonna__intestazione { border-bottom-style: dashed; border-bottom-color: var(--bordo-scuro); }
+
+.colonna__corpo {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  min-height: 360px;
+  padding: 3px;
+  border-radius: var(--r-medio);
+}
+.colonna--attesa .colonna__corpo { background: var(--quieto-1); }
+
+.colonna__corpo.is-sopra::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: 1.5px dashed var(--tenue-2);
+  background: rgba(38, 34, 32, .04);
+  border-radius: var(--r-medio);
+  pointer-events: none;
+}
+
+.colonna__vuota {
+  padding: 14px 12px;
+  border: 1px dashed var(--bordo);
+  border-radius: var(--r-medio);
+  font: 12px/1.4 var(--font);
+  color: var(--tenue);
+  text-align: center;
+}
+
+/* Nota */
+
+.nota {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 11px 12px;
+  background: var(--carta);
+  border: 1px solid var(--bordo-tenue);
+  border-radius: var(--r-medio);
+  box-shadow: var(--ombra-carta);
+}
+.nota[draggable="true"] { cursor: grab; }
+.nota.is-trascinata { opacity: .4; }
+
+.nota__categoria {
+  align-self: flex-start;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  font: 400 11.5px var(--font);
+  color: var(--tenue-2);
+}
+.nota__categoria--vuota { font-style: italic; }
+
+.nota__codice { font-weight: 600; letter-spacing: .02em; }
+
+/* Dove succede, non che cosa è: il contorno la tiene distinta dalla categoria. */
+.nota__piattaforma {
+  flex: none;
+  padding: 0 6px;
+  border: 1px solid var(--bordo);
+  border-radius: var(--r-minimo);
+  font-size: 10.5px;
+  color: var(--tenue);
+  white-space: nowrap;
+}
+.nota__nome-categoria {
+  font-size: 10.5px;
+  color: var(--tenue);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nota__titolo {
+  font: 500 13.5px/1.38 var(--font);
+  color: var(--testo);
+  text-wrap: pretty;
+  overflow-wrap: anywhere;
+}
+
+.nota__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 1px;
+  flex-wrap: wrap;
+}
+
+.scadenza {
+  padding: 2px 7px;
+  border-radius: var(--r-minimo);
+  font: 500 11.5px var(--font);
+  font-variant-numeric: tabular-nums;
+  background: var(--quieto-5);
+  color: var(--tenue-2);
+}
+.scadenza--ritardo { background: var(--ritardo-pieno); color: #ffffff; }
+.scadenza--oggi    { background: var(--testo); color: var(--carta-quieta); }
+
+.nota__priorita { font: 600 11.5px var(--font); color: var(--ritardo-testo); }
+.nota__ferma { font: 11.5px var(--font); color: var(--tenue-2); }
+
+.nota__rimanda {
+  margin-left: auto; /* staccato dai chip: è un'azione, non un'etichetta */
+  flex: none;
+  padding: 2px 8px;
+  border: 1px solid var(--bordo);
+  border-radius: var(--r-piccolo);
+  background: var(--carta-quieta);
+  color: var(--testo-2);
+  font: 500 11.5px var(--font);
+  cursor: pointer;
+}
+.nota__rimanda:hover { background: var(--quieto-3); }
+
+/* Il nome per esteso invece delle iniziali in un cerchio: "MB" non è nessuno. */
+.nota__da {
+  font: 400 11.5px var(--font);
+  color: var(--tenue-2);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nota__esito {
+  padding: 2px 7px;
+  border-radius: var(--r-minimo);
+  font: 500 11.5px var(--font);
+  background: var(--quieto-3);
+  color: var(--testo-2);
+}
+
+/* Riga con swipe (solo telefono) */
+
+.riga { position: relative; }
+
+.riga__scoperta {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  border-radius: var(--r-grande);
+  background: var(--testo);
+  font: 500 12.5px var(--font);
+  color: var(--carta-quieta);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.riga .nota {
+  border-radius: var(--r-grande);
+  touch-action: pan-y;
+  transition: transform .15s cubic-bezier(.2, .7, .3, 1);
+}
+.riga.is-swipe .nota { transition: none; }
+
+/* ─── Dettaglio ──────────────────────────────────────────────────────────── */
+
+.dettaglio {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+}
+
+.dettaglio__fondo {
+  position: absolute;
+  inset: 0;
+  background: rgba(38, 34, 32, .34);
+}
+
+.dettaglio__foglio {
+  position: relative;
+  width: 100%;
+  max-width: 520px;
+  max-height: 100%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 18px 20px 22px;
+  background: var(--carta);
+  border-radius: var(--r-fascia);
+  box-shadow: 0 18px 50px rgba(38, 34, 32, .28);
+}
+
+.dettaglio__testa {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.dettaglio__testo {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font: 500 15px/1.4 var(--font);
+  color: var(--testo);
+  text-wrap: pretty;
+  overflow-wrap: anywhere;
+}
+.dettaglio__chiudi {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: var(--r-piccolo);
+  background: var(--quieto-3);
+  color: var(--tenue);
+  font-size: 13px;
+  cursor: pointer;
+}
+.dettaglio__chiudi:hover { background: var(--bordo); }
+
+.dettaglio__sezione { display: flex; flex-direction: column; gap: 8px; }
+
+.dettaglio__etichetta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font: 600 11.5px var(--font);
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--tenue);
+}
+.dettaglio__attuale {
+  font: 400 11.5px var(--font);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--tenue-2);
+  text-align: right;
+  min-width: 0;
+}
+.dettaglio__nota { font: 400 11.5px var(--font); color: var(--tenue-2); }
+
+.dettaglio__riga { display: flex; align-items: center; gap: 8px; }
+
+.dettaglio__campo {
+  flex: 1;
+  min-width: 0;
+  height: 38px;
+  padding: 0 11px;
+  border: 1px solid var(--bordo);
+  border-radius: var(--r-medio);
+  background: var(--carta-quieta);
+  font: 13.5px var(--font);
+  color: var(--testo);
+}
+.dettaglio__campo:focus { outline: none; border-color: var(--bordo-scuro); }
+
+.dettaglio__via {
+  flex: none;
+  align-self: flex-start;
+  padding: 4px 10px;
+  border: 1px solid var(--bordo);
+  border-radius: var(--r-piccolo);
+  background: transparent;
+  color: var(--tenue-2);
+  font: 500 11.5px var(--font);
+  cursor: pointer;
+}
+.dettaglio__via:hover { background: var(--quieto-3); }
+
+/* La categoria sta in cima e sotto le dita: è il campo che si corregge sempre. */
+.dettaglio__sezione--categoria {
+  gap: 10px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--bordo-carta);
+}
+
+.area { display: flex; flex-direction: column; gap: 5px; }
+.area__nome {
+  font: 400 11px var(--font);
+  color: var(--tenue-2);
+}
+
+.categorie { display: flex; flex-wrap: wrap; gap: 5px; }
+.categorie--suggerite { margin-bottom: 2px; }
+
+.categoria-scelta {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 6px 10px;
+  border: 1px solid var(--bordo);
+  border-radius: var(--r-piccolo);
+  background: var(--carta-quieta);
+  cursor: pointer;
+  text-align: left;
+}
+.categoria-scelta:hover { background: var(--quieto-3); }
+.categoria-scelta__cod {
+  font: 600 12px var(--font);
+  color: var(--testo);
+}
+.categoria-scelta__nome {
+  font: 400 11px var(--font);
+  color: var(--tenue-2);
+  max-width: 190px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.categoria-scelta.is-attiva {
+  background: var(--testo);
+  border-color: var(--testo);
+}
+.categoria-scelta.is-attiva .categoria-scelta__cod { color: var(--carta-quieta); }
+.categoria-scelta.is-attiva .categoria-scelta__nome { color: #a89f94; }
+
+.categorie--suggerite .categoria-scelta {
+  border-style: dashed;
+  border-color: var(--bordo-scuro);
+}
+
+.esiti { display: flex; flex-wrap: wrap; gap: 5px; }
+.esito-scelta {
+  padding: 6px 12px;
+  border: 1px solid var(--bordo);
+  border-radius: var(--r-piccolo);
+  background: var(--carta-quieta);
+  font: 500 12px var(--font);
+  color: var(--testo-2);
+  cursor: pointer;
+}
+.esito-scelta:hover { background: var(--quieto-3); }
+.esito-scelta.is-attivo {
+  background: var(--testo);
+  border-color: var(--testo);
+  color: var(--carta-quieta);
+}
+
+.guasto {
+  margin: 0;
+  padding: 16px 18px;
+  border: 1px solid var(--ritardo-linea);
+  border-radius: var(--r-medio);
+  background: var(--ritardo-sfondo);
+  color: var(--ritardo-testo);
+  font: 13px/1.5 var(--font);
+}
+
+.nota { cursor: pointer; }
+.nota:focus-visible {
+  outline: 2px solid var(--testo);
+  outline-offset: 2px;
+}
+
+/* ─── Barra Annulla ──────────────────────────────────────────────────────── */
+
+.annulla {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  max-width: calc(100vw - 32px);
+  padding: 10px 12px 10px 16px;
+  border-radius: var(--r-medio);
+  background: var(--testo);
+  box-shadow: 0 4px 18px rgba(38, 34, 32, .22);
+}
+.annulla__testo {
+  font: 13px var(--font);
+  color: var(--carta-quieta);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.annulla__bottone {
+  flex: none;
+  border: 0;
+  border-radius: var(--r-piccolo);
+  padding: 5px 11px;
+  background: #46413a;
+  color: #f4f1ea;
+  font: 600 12.5px var(--font);
+  cursor: pointer;
+}
+.annulla__bottone:hover { background: #514a42; }
+
+/* ─── Telefono: una lista per volta ──────────────────────────────────────── */
+
+@media (max-width: 899px) {
+  .app { padding: 0 0 18px; }
+
+  .fascia--cattura {
+    gap: 10px;
+    padding: 10px 14px 12px;
+    border-radius: 0;
+    box-shadow: none;
+    border-bottom: 1px solid var(--bordo-carta);
+    margin-bottom: 0;
+    flex-wrap: wrap;
+  }
+  .marchio { font-size: 14px; line-height: 40px; }
+  .campo { height: 40px; }
+  .campo__input { font-size: 16px; } /* iOS: sotto i 16px zooma da solo */
+  .azioni { padding-top: 0; }
+  .bottone-icona { width: 40px; height: 40px; border-radius: var(--r-medio); }
+  .dispositivo { display: none; }
+  /* Su 390px l'indicatore va sotto il campo, non spinge fuori i due bottoni. */
+  .stato-sync { order: 3; }
+
+  .ricerca { margin: 0; border-radius: 0; padding: 10px 14px; }
+  .ricerca__esc { display: none; }
+  .ricerca__input { font-size: 16px; }
+
+  .fascia--scadenze {
+    padding: 4px 8px;
+    border-radius: 0;
+    box-shadow: none;
+    background: var(--carta-quieta);
+    border-bottom: 1px solid var(--bordo-carta);
+    margin-bottom: 0;
+  }
+  /* Su 390px i quattro contatori non stanno in riga: scorrono, senza andare a capo. */
+  .contatori {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .contatori::-webkit-scrollbar { display: none; }
+  .contatore { flex: none; padding: 6px 9px; }
+  .contatore__nome { white-space: nowrap; }
+
+  .barra-stati { padding: 10px 12px 0; }
+
+  .contenuto { padding: 12px 12px 18px; }
+
+  .colonne { display: block; }
+  .colonna { display: none; }
+  .colonna.is-attiva { display: flex; }
+  .colonna__intestazione { display: none; }
+  .colonna__corpo { min-height: 300px; padding: 0; gap: 8px; background: none; }
+  .colonna--attesa .colonna__corpo { background: none; }
+
+  .nota { gap: 6px; padding: 11px 12px; border-radius: var(--r-grande); }
+  .nota__titolo { font-size: 14px; }
+
+  /* Sul telefono il dettaglio è un foglio che sale, non una finestrella al centro. */
+  .dettaglio { padding: 0; align-items: flex-end; }
+  .dettaglio__foglio {
+    max-width: none;
+    max-height: 92vh;
+    border-radius: var(--r-fascia) var(--r-fascia) 0 0;
+    padding: 16px 14px calc(22px + env(safe-area-inset-bottom));
+  }
+  .categoria-scelta__nome { max-width: 150px; }
+}
+
+@media (min-width: 900px) {
+  .barra-stati { display: none; }
+  .riga__scoperta { display: none; }
+}
