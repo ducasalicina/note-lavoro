@@ -49,6 +49,13 @@
 
 * { box-sizing: border-box; }
 
+/* `hidden` vale `display: none` nel foglio del browser, e QUALSIASI regola d'autore lo
+   batte — anche una classe, perché gli stili d'autore vincono su quelli del browser a
+   prescindere dalla specificità. Senza questa riga `.dettaglio { display: flex }` teneva
+   a schermo pannelli che il codice considerava chiusi, e nessuno se ne accorgeva perché
+   `elemento.hidden` risultava `true`. Non toglierla: qui si nasconde con `hidden`. */
+[hidden] { display: none !important; }
+
 html, body {
   margin: 0;
   background: var(--sfondo);

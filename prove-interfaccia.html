@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prove dell'interfaccia</title>
+<style>
+  body { margin: 0; padding: 22px; background: #f3efe9; color: #262220;
+         font: 14px/1.5 Helvetica, Arial, sans-serif; }
+  h1 { font-size: 17px; margin: 0 0 4px; }
+  p { margin: 0 0 18px; color: #6f6760; max-width: 62ch; }
+  ol { margin: 0 0 20px; padding-left: 0; list-style: none; }
+  li { padding: 5px 0; border-bottom: 1px solid #e8e1d7; font-variant-numeric: tabular-nums; }
+  .ok::before { content: 'ok'; color: #3b352f; }
+  .ko::before { content: 'ROTTA'; color: #96391a; font-weight: 600; }
+  .ok::before, .ko::before { display: inline-block; width: 58px; }
+  .totale { font-weight: 600; }
+  iframe { width: 420px; height: 620px; border: 1px solid #e4dcd1; border-radius: 12px;
+           background: #fff; }
+</style>
+</head>
+<body>
+
+<h1>Prove dell'interfaccia</h1>
+<p>
+  Si apre in un browser e basta. Carica <code>index.html</code> in un riquadro qui sotto e
+  guarda com'è disegnata <strong>a pagina appena caricata</strong>, prima che qualcuno
+  tocchi niente: è il caso che le prove precedenti non coprivano, perché partivano sempre
+  da uno stato già interagito. Controlla il disegno vero — <code>getClientRects()</code> —
+  non l'attributo <code>hidden</code>, che risultava a posto mentre i pannelli si vedevano.
+  Non tocca la configurazione salvata.
+</p>
+
+<ol id="esiti"></ol>
+
+<iframe id="app" src="index.html" title="l'app sotto prova"></iframe>
+
+<script type="module">
+  const esiti = [];
+  const prova = (nome, ok) => esiti.push([nome, !!ok]);
+  const pausa = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  // Una prova che si rompe deve dirlo, non sparire: senza questo un errore qui dentro
+  // lasciava la pagina vuota e sembrava che non fosse successo niente.
+  addEventListener('error', (e) => mostra([['la prova stessa è esplosa: ' + e.message, false]]));
+  addEventListener('unhandledrejection', (e) => mostra([['la prova stessa è esplosa: ' + (e.reason?.message || e.reason), false]]));
+
+  const app = document.getElementById('app');
+  /* Un iframe appena messo nel documento ha già dentro un `about:blank` con
+     `readyState` a "complete": chi controlla solo quello finisce per ispezionare la
+     pagina sbagliata, e la prova passa o esplode per il motivo sbagliato. L'unica
+     domanda buona è se dentro c'è già la pagina che ci interessa. */
+  const caricata = () => app.contentWindow?.location?.pathname?.endsWith('index.html');
+  if (!caricata()) {
+    await new Promise((r) => app.addEventListener('load', r, { once: true }));
+  }
+  const doc = app.contentDocument;
+  const fin = app.contentWindow;
+  await pausa(700); // l'app apre IndexedDB prima di disegnare
+
+  /** Disegnato davvero, non "senza l'attributo hidden". */
+  const disegnato = (id) => doc.getElementById(id).getClientRects().length > 0;
+
+  const NASCOSTI = [
+    ['dettaglio', 'il dettaglio'],
+    ['config', 'le impostazioni'],
+    ['riga-ricerca', 'la barra di ricerca'],
+    ['annulla', 'la barretta Annulla'],
+    ['suggerimenti', 'il suggerimento inline'],
+    ['anteprima', 'le etichette indovinate'],
+  ];
+
+  for (const [id, nome] of NASCOSTI) {
+    prova(`a freddo ${nome} non si vede`, !disegnato(id));
+  }
+
+  // E poi devono aprirsi davvero: nascondere con !important non deve impedire di mostrare.
+  doc.getElementById('impostazioni').click();
+  await pausa(200);
+  prova('le impostazioni si aprono', disegnato('config'));
+
+  doc.dispatchEvent(new fin.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  await pausa(150);
+  prova('Esc le richiude', !disegnato('config'));
+
+  doc.getElementById('cerca').click();
+  await pausa(150);
+  prova('la ricerca si apre', disegnato('riga-ricerca'));
+
+  doc.getElementById('cerca').click();
+  await pausa(150);
+  prova('la ricerca si richiude', !disegnato('riga-ricerca'));
+
+  mostra(esiti);
+
+  function mostra(righe) {
+    const elenco = document.getElementById('esiti');
+    elenco.replaceChildren();
+    for (const [nome, ok] of righe) {
+      const li = document.createElement('li');
+      li.className = ok ? 'ok' : 'ko';
+      li.append(' ' + nome);
+      elenco.append(li);
+    }
+    const rotte = righe.filter(([, ok]) => !ok).length;
+    const riassunto = `${righe.length - rotte}/${righe.length} passate${rotte ? `, ${rotte} da guardare` : ''}`;
+    const li = document.createElement('li');
+    li.className = 'totale';
+    li.textContent = riassunto;
+    elenco.append(li);
+    document.title = riassunto;
+
+    // Serve solo a farla girare in automatico: ?segnale=<url> le manda l'esito.
+    const segnale = new URLSearchParams(location.search).get('segnale');
+    if (segnale) {
+      new Image().src = segnale + '?m=' + encodeURIComponent(
+        righe.map(([n, ok]) => (ok ? 'ok    ' : 'ROTTA ') + n).join(' | ') + ' | ' + riassunto);
+    }
+  }
+</script>
+
+</body>
+</html>

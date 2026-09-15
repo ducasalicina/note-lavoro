@@ -178,5 +178,8 @@ step. Serve perché `node` legga i `.js` come moduli ES, cosa che il browser fa 
 - Se propone una libreria, una cartella `src/`, un bundler o React, la risposta è no: il
   progetto deve restare apribile e modificabile fra due anni senza ricostruire nulla.
 - Ogni modifica al dizionario passa da `node prove-classificatore.js` prima del commit.
+- Ogni modifica al CSS o al markup passa da `prove-interfaccia.html`, aperta in un
+  browser. Controlla la pagina **appena caricata**, che è dove si era nascosto il difetto
+  dei pannelli sempre visibili.
 - Quando una prova fallisce, non alzare un peso finché passa: guarda perché, e se è la
   frase attesa a essere sbagliata correggi la prova.

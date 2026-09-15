@@ -53,6 +53,8 @@ note-lavoro/                    (pubblico, Pages)
 ├── brt-classificatore.js       GIÀ SCRITTO — non riscrivere
 ├── brt-store.js                GIÀ SCRITTO — non riscrivere
 ├── prove-classificatore.js     prove del dizionario: node prove-classificatore.js
+├── prove-reali.js              venti estratti autentici da mail, con l'esito atteso
+├── prove-interfaccia.html      prove del disegno: si apre in un browser e basta
 ├── package.json                solo {"type":"module"}, perché node legga i .js come ESM
 ├── sw.js                       cache statica, niente cache delle API
 ├── manifest.webmanifest
@@ -285,6 +287,23 @@ se la frase attesa è sbagliata si corregge la prova.
 - Gestione errori: la rete fallisce in silenzio e si riprova, tutto il resto è visibile.
 - CSS: solo variabili e classi definite dal design. Se ti serve qualcosa che non c'è,
   segnalalo invece di inventare colori e spaziature.
+- **Si nasconde con `hidden`, mai con `style.display`.** In cima a `stile.css` c'è
+  `[hidden] { display: none !important; }` e non va tolta: `hidden` vale `display: none`
+  solo nel foglio del browser, e **qualsiasi** regola d'autore lo batte a prescindere
+  dalla specificità. Senza quella riga `.dettaglio { display: flex }` teneva a schermo
+  pannelli che il codice considerava chiusi.
+
+### Le prove guardano quello che si vede, non quello che il codice crede
+
+Il difetto qui sopra è passato attraverso tutte le prove perché controllavano
+`elemento.hidden`, che era `true` mentre il pannello si vedeva benissimo. Una prova
+sull'interfaccia deve chiedere `getClientRects()` o lo stile calcolato: la proprietà dice
+cosa voleva il codice, il disegno dice cosa vede l'utente, e il difetto sta in mezzo.
+
+Stessa cosa per lo stato iniziale: le prove partivano tutte da una pagina già toccata, e
+nessuna guardava com'era **appena caricata**. `prove-interfaccia.html` copre quel caso, si
+apre in un browser e basta, e carica `index.html` in un riquadro invece di ricopiarne il
+markup.
 
 ## 10. Cosa NON fare, mai
 
