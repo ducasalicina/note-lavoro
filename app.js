@@ -184,12 +184,22 @@ function scaduto(nota) {
 /** Quante note stanno davvero in uno stato, ignorando i filtri. */
 const quante = (chiave) => tutte().filter((n) => n.stato === chiave).length;
 
+// Il chiuso mostra solo la settimana appena passata. Il resto non sparisce e non si
+// archivia a mano: resta nel log e si ritrova con la ricerca, che copre tutti gli stati.
+// Il valore dello strumento sta proprio nel poter rivedere cosa è stato chiuso e quando.
+const GIORNI_CHIUSO = 7;
+
+const chiuseVecchie = () =>
+  tutte().filter((n) => n.stato === 'chiuso' && giorniDa(n.agg) > GIORNI_CHIUSO).length;
+
 /** Note di uno stato, già passate al contatore attivo e al filtro di ricerca. */
 function visibili(chiave) {
   const q = filtro.trim().toLowerCase();
   const scelta = FASCE.find((f) => f.chiave === fascia);
   return tutte().filter((n) => {
     if (n.stato !== chiave) return false;
+    // Cercando si vede tutto: è il modo per ritrovare le chiusure vecchie.
+    if (chiave === 'chiuso' && !q && giorniDa(n.agg) > GIORNI_CHIUSO) return false;
     if (scelta && !scelta.test(n)) return false;
     if (!q) return true;
     const dove = [n.testo, n.da || '', n.cat || '', n.ticket || '', (n.tag || []).join(' ')].join(' ');
@@ -229,7 +239,11 @@ function disegnaScadenze() {
     riga.append(b);
   });
 
-  $('#fascia-scadenze').replaceChildren(riga);
+  // Dice di cosa parla la riga: questi contano ritardi e cose ferme, mentre i numeri
+  // accanto ai titoli delle colonne contano quanto lavoro c'è. Senza l'etichetta si
+  // somigliano troppo. Sta fuori dal contenitore che scorre, così non se ne va via.
+  const nome = nodo('span', 'fascia__nome', 'Da guardare oggi');
+  $('#fascia-scadenze').replaceChildren(nome, riga);
 }
 
 function disegnaBarra() {
@@ -275,10 +289,16 @@ function disegnaColonne() {
     collegaRilascio(corpo, s.chiave);
 
     const elenco = visibili(s.chiave);
-    if (elenco.length === 0) {
+    const vecchie = s.chiave === 'chiuso' && !filtro.trim() ? chiuseVecchie() : 0;
+
+    for (const n of elenco) corpo.append(desktop() ? disegnaNota(n) : disegnaRiga(n));
+    if (elenco.length === 0 && vecchie === 0) {
       corpo.append(nodo('div', 'colonna__vuota', desktop() ? 'Trascina qui' : 'Vuota'));
-    } else {
-      for (const n of elenco) corpo.append(desktop() ? disegnaNota(n) : disegnaRiga(n));
+    }
+    if (vecchie > 0) {
+      const oltre = bottone('colonna__oltre', `altre ${vecchie} chiuse, cercale`);
+      oltre.addEventListener('click', apriRicerca);
+      corpo.append(oltre);
     }
 
     colonna.append(corpo);
@@ -400,6 +420,9 @@ function collegaRilascio(corpo, chiave) {
 // ─── Scorrimento (solo telefono) ─────────────────────────────────────────────
 
 const SOGLIA = 70;
+// L'eliminazione sta molto più in là della soglia che manda in corso: la si raggiunge
+// solo volendo, e strada facendo la card vira al rosso, così si vede dove si sta andando.
+const SOGLIA_ELIMINA = 150;
 
 function collegaScorrimento(riga, carta, scoperta, n, puo) {
   let partenza = null;
@@ -421,22 +444,26 @@ function collegaScorrimento(riga, carta, scoperta, n, puo) {
     if (partenza === null) return;
     dx = e.clientX - partenza;
     if (dx > 0 && !puo.chiudibile) dx = 0;
-    if (dx < 0 && !puo.avviabile) dx = 0;
-    dx = Math.max(-116, Math.min(116, dx));
+    dx = Math.max(-200, Math.min(116, dx));
+    const elimina = dx <= -SOGLIA_ELIMINA;
     carta.style.transform = `translateX(${dx}px)`;
     scoperta.style.opacity = String(Math.min(1, Math.abs(dx) / 56));
+    riga.classList.toggle('is-elimina', elimina);
+    scoperta.lastElementChild.textContent = elimina ? 'Elimina'
+      : puo.avviabile ? 'In corso →' : '';
   });
 
   const rilascia = () => {
     if (partenza === null) return;
     const scelto = dx;
     partenza = null;
-    riga.classList.remove('is-swipe');
+    riga.classList.remove('is-swipe', 'is-elimina');
     carta.style.transform = '';
     scoperta.style.opacity = '0';
     // Un dito che si è mosso stava scorrendo, non toccando: non aprire il dettaglio.
     if (Math.abs(scelto) > 4) carta.dataset.scorso = '1';
-    if (scelto >= SOGLIA && puo.chiudibile) sposta(n.id, 'chiuso');
+    if (scelto <= -SOGLIA_ELIMINA) eliminaNota(n.id);
+    else if (scelto >= SOGLIA && puo.chiudibile) sposta(n.id, 'chiuso');
     else if (scelto <= -SOGLIA && puo.avviabile) sposta(n.id, 'corso');
   };
 
@@ -498,6 +525,22 @@ async function correggi(id, patch) {
   disegna();
 }
 
+/** Nessuna conferma: l'evento contrario è un `new` con lo stesso id, quindi la barretta
+ *  Annulla copre l'eliminazione come copre tutto il resto. È una protezione migliore di
+ *  un "sei sicuro?", che dopo la ventesima volta si tocca senza leggerlo. */
+async function eliminaNota(id) {
+  const nota = tutte().find((n) => n.id === id);
+  if (!nota) return;
+  const copia = { ...nota };
+  if (apertaId === id) chiudiDettaglio();
+  await Store.elimina(id);
+  disegna();
+  offriAnnulla('Nota eliminata', async () => {
+    await Store.ripristina(copia);
+    disegna();
+  });
+}
+
 function offriAnnulla(descrizione, contrario) {
   const barra = $('#annulla');
   clearTimeout(scadutoAnnulla);
@@ -555,6 +598,13 @@ function disegnaDettaglio() {
   foglio.append(campoData('Ricontrollo', n.rc || null, 'quando la rivedo', (v) => correggi(n.id, { rc: v })));
   foglio.append(campoTesto('Numero ticket', n.ticket || '', 'vuoto = fuori dal sistema ufficiale', (v) => correggi(n.id, { ticket: v || null })));
   if (n.stato === 'chiuso') foglio.append(sezioneEsito(n));
+
+  const sezElimina = nodo('section', 'dettaglio__sezione');
+  const elimina = bottone('dettaglio__via pericolo', 'Elimina la nota');
+  elimina.addEventListener('click', () => eliminaNota(n.id));
+  sezElimina.append(elimina);
+  sezElimina.append(nodo('div', 'dettaglio__nota', 'Si annulla dalla barretta, come tutto il resto.'));
+  foglio.append(sezElimina);
 
   $('#dettaglio').hidden = false;
 }
@@ -686,6 +736,7 @@ function disegnaConfig() {
   chiudi.addEventListener('click', chiudiConfig);
   testa.append(chiudi);
   foglio.append(testa);
+  if (avvisoConfig) foglio.append(nodo('div', 'guasto', avvisoConfig));
 
   foglio.append(campoTesto('Owner GitHub', c.owner, 'il tuo utente o l\'organizzazione', (v) => riconfigura({ owner: v })));
   foglio.append(campoTesto('Repository dati', c.repo, 'quello privato, non quello dell\'app', (v) => riconfigura({ repo: v })));
@@ -763,31 +814,76 @@ function sezioneProve(c) {
   sez.append(riga);
   sez.append(nodo('div', 'dettaglio__nota', 'Da spegnere prima del primo collegamento al repo vero, o il log nasce con dentro note finte.'));
 
-  // Conferma in due tempi invece di un modale: §5 dice mai "sei sicuro?", ma questo è
-  // l'unico gesto dell'app che il log non sa annullare, quindi un secondo tocco ci vuole.
-  const svuota = bottone('dettaglio__via pericolo', 'Svuota archivio locale');
+  // Due azioni distinte, perché fanno due cose molto diverse. Entrambe in due tempi:
+  // §5 dice mai "sei sicuro?", ma quella regola vale dove il log sa annullare, e qui no.
+  sez.append(inDueTempi(
+    'Svuota copia locale (i dati torneranno dalla sincronizzazione)',
+    'Tocca ancora per svuotare la copia locale',
+    async () => {
+      await Store.svuota();
+      if (cfg().esempi) await seminaEsempi();
+    },
+  ));
+  sez.append(nodo('div', 'dettaglio__nota',
+    'Cancella solo IndexedDB su questo dispositivo. Gli eventi restano su GitHub, quindi alla prima sincronizzazione le note tornano indietro da sole: serve a ripartire puliti, non a disfare il lavoro.'));
+
+  sez.append(inDueTempi(
+    'Cancella tutto, anche su GitHub',
+    'Tocca ancora: cancella anche il repo dati',
+    async () => {
+      try {
+        await Store.cancellaTutto();
+        rete.guasta = false;
+      } catch (err) {
+        rete.guasta = true;
+        alertaConfig(`Non è stato possibile cancellare su GitHub: ${err.message}`);
+      }
+    },
+  ));
+  sez.append(nodo('div', 'dettaglio__nota',
+    'Azzera i file di log e lo snapshot nel repo dati, poi la copia locale. Questa non torna indietro da nessuna parte: è l\'unica cosa che il log degli eventi non sa annullare, perché cancella il log stesso. Serve il token.'));
+  return sez;
+}
+
+/** Un bottone che al primo tocco si arma e al secondo agisce. La finestra è di cinque
+ *  secondi: abbastanza per decidere, troppo poco per diventare un gesto automatico. */
+function inDueTempi(etichetta, avviso, azione) {
+  const b = bottone('dettaglio__via pericolo', etichetta);
   let armato = false;
-  svuota.addEventListener('click', async () => {
+  let scaduto = null;
+  b.addEventListener('click', async () => {
     if (!armato) {
       armato = true;
-      svuota.textContent = 'Tocca ancora per cancellare tutto';
-      svuota.classList.add('is-armato');
-      setTimeout(() => {
+      b.textContent = avviso;
+      b.classList.add('is-armato');
+      scaduto = setTimeout(() => {
         armato = false;
-        svuota.textContent = 'Svuota archivio locale';
-        svuota.classList.remove('is-armato');
+        b.textContent = etichetta;
+        b.classList.remove('is-armato');
       }, 5000);
       return;
     }
-    await Store.svuota();
-    if (cfg().esempi) await seminaEsempi();
+    clearTimeout(scaduto);
+    b.disabled = true;
+    await azione();
     disegna();
     await aggiornaStato();
     disegnaConfig();
   });
-  sez.append(svuota);
-  sez.append(nodo('div', 'dettaglio__nota', 'Cancella solo IndexedDB su questo dispositivo. Il repo dati non viene toccato.'));
-  return sez;
+  return b;
+}
+
+/** Gli errori di rete falliscono in silenzio, questo no: è una cosa che ho chiesto io.
+ *  Sta in una variabile e non nel DOM perché il pannello si ridisegna subito dopo. */
+let avvisoConfig = null;
+
+function alertaConfig(testo) {
+  avvisoConfig = testo;
+  setTimeout(() => {
+    if (avvisoConfig !== testo) return;
+    avvisoConfig = null;
+    if (!$('#config').hidden) disegnaConfig();
+  }, 8000);
 }
 
 async function riconfigura(parziale) {
@@ -800,26 +896,36 @@ async function riconfigura(parziale) {
   await aggiornaStato();
 }
 
-/** In pari, in coda N, non raggiungibile. Discreto e sempre vero. */
+/** Un pallino, e una parola solo quando serve dirne una. Quando è tutto a posto non c'è
+ *  niente da leggere: il verde da solo è già la risposta. Il testo per esteso resta nel
+ *  `title` e nell'etichetta accessibile, per chi il colore non lo vede. */
 async function aggiornaStato() {
   const el = $('#stato-sync');
-  const c = cfg();
-  const scrivi = (testo, classe) => {
-    el.textContent = testo;
+  const scrivi = (classe, breve, esteso) => {
     el.className = `stato-sync ${classe}`.trim();
+    $('#stato-sync-testo').textContent = breve;
+    el.title = esteso;
+    el.setAttribute('aria-label', esteso);
   };
 
-  if (!c.owner || !c.repo || !token()) return scrivi('non configurato', 'stato-sync--spento');
+  const c = cfg();
+  if (!c.owner || !c.repo || !token()) {
+    return scrivi('stato-sync--spento', 'non configurato', 'Sincronizzazione non configurata: apri le impostazioni');
+  }
 
   let coda = 0;
   try {
     coda = await Store.inCoda();
   } catch {
-    return scrivi('archivio non pronto', 'stato-sync--guasto');
+    return scrivi('stato-sync--guasto', 'archivio non pronto', 'Archivio locale non disponibile');
   }
-  if (!navigator.onLine || rete.guasta) return scrivi('non raggiungibile', 'stato-sync--guasto');
-  if (coda > 0) return scrivi(`in coda ${coda}`, 'stato-sync--coda');
-  scrivi('in pari', '');
+  if (!navigator.onLine || rete.guasta) {
+    return scrivi('stato-sync--guasto', 'non raggiungibile', 'GitHub non risponde: le note restano qui e ripartono da sole');
+  }
+  if (coda > 0) {
+    return scrivi('stato-sync--coda', String(coda), `${coda} ${coda === 1 ? 'nota in coda' : 'note in coda'} da sincronizzare`);
+  }
+  scrivi('stato-sync--pari', '', 'Sincronizzato con GitHub');
 }
 
 // ─── Cattura ─────────────────────────────────────────────────────────────────
@@ -967,12 +1073,17 @@ const bottoneCerca = $('#cerca');
 const rigaRicerca = $('#riga-ricerca');
 const campoRicerca = $('#ricerca');
 
+function apriRicerca() {
+  rigaRicerca.hidden = false;
+  bottoneCerca.setAttribute('aria-expanded', 'true');
+  campoRicerca.focus();
+}
+
 bottoneCerca.addEventListener('click', () => {
-  const apriLa = rigaRicerca.hidden;
-  rigaRicerca.hidden = !apriLa;
-  bottoneCerca.setAttribute('aria-expanded', String(apriLa));
-  if (apriLa) campoRicerca.focus();
-  else chiudiRicerca();
+  if (rigaRicerca.hidden) return apriRicerca();
+  rigaRicerca.hidden = true;
+  bottoneCerca.setAttribute('aria-expanded', 'false');
+  chiudiRicerca();
 });
 
 campoRicerca.addEventListener('input', () => {

@@ -26,7 +26,8 @@ che dica cosa cambia, non quali file tocca.
    nascerebbe con quelle dentro. `dati-esempio.js` resta nel repo apposta: serve a provare
    sincronizzazione e gesti. Si cancella quando non serve più, insieme alla sua chiamata
    in `avvia()`.
-2. **Svuotare l'archivio locale** dal pannello, dopo le prove.
+2. **Svuotare la copia locale** dal pannello, dopo le prove. Attenzione a quale delle due
+   azioni si tocca: la prima è reversibile dalla sincronizzazione, la seconda no.
 
 ### Il criterio 4 non è dimostrato
 
@@ -63,11 +64,18 @@ token e **Cancella token da questo dispositivo**. Accanto, l'indicatore di stato
 `non configurato` · `in pari` · `in coda N` · `non raggiungibile`, che apre il pannello se
 lo tocchi.
 
-Dentro al pannello, la sezione **Prove**: l'interruttore delle note di esempio (spento di
-suo) e **Svuota archivio locale**, con conferma in due tocchi invece che con un modale.
+L'indicatore è un pallino con una parola solo quando serve dirne una: verde muto in pari,
+giallo col numero in coda, rosso con "non raggiungibile". Lo stato per esteso resta nel
+`title` e nell'etichetta accessibile.
 
-Tre aggiunte a `brt-store.js`, tutte in sola lettura tranne l'ultima, tutte necessarie a
-quello che la tappa chiedeva: `inCoda()`, `ultimaSync()`, `svuota()`.
+Dentro al pannello, la sezione **Prove**: l'interruttore delle note di esempio (spento di
+suo) e due azioni distinte, entrambe in due tocchi — **Svuota copia locale**, che tocca
+solo IndexedDB e da cui i dati tornano alla prima sincronizzazione, e **Cancella tutto,
+anche su GitHub**, che azzera i log nel repo dati e non torna indietro da nessuna parte.
+
+Cinque aggiunte a `brt-store.js`, tutte necessarie a quello che è stato chiesto e nessuna
+che cambi l'approccio del file: `inCoda()`, `ultimaSync()`, `svuota()`, `cancellaTutto()`
+e `ripristina()`.
 
 **Da verificare col repo vero:** il criterio di questa tappa, cioè che una nota inserita
 sul PC compaia sul telefono e viceversa senza duplicati.
@@ -86,8 +94,12 @@ cui il classificatore stava esitando. Uno scorrimento non apre il dettaglio.
 Ogni spostamento lascia cinque secondi di **Annulla**. Rimanda fa eccezione e non la
 mostra: è già reversibile rimandando ancora.
 
-**Provato nel browser a 390px:** scorrimento nei due versi, soglia rispettata, barretta
-Annulla che compare, riporta la nota indietro e sparisce.
+Lo **swipe lungo a sinistra** (150px contro i 70 che mandano in corso) elimina, con la
+card che vira al rosso strada facendo. Nessuna conferma: scrive un `del` come le altre
+azioni e la barretta Annulla lo copre riscrivendo un `new` con lo stesso id.
+
+**Provato nel browser a 390px:** scorrimento nei due versi, entrambe le soglie, virata al
+rosso, barretta Annulla che compare, riporta la nota indietro e sparisce.
 
 ## Tappa 4 — Fascia e ricerca ✓
 
@@ -143,6 +155,17 @@ vero. Quando `rc` è passata, sulla card compare **Rimanda**: un tocco e basta.
 
 **Il limite WIP** su "In corso": contatore `n/limite`, default 3, evidenziato quando è
 superato e **mai bloccante**. È uno specchio, non un cancello.
+
+**L'eliminazione**, dal dettaglio e con lo swipe lungo a sinistra sul telefono, coperta
+dalla barretta Annulla grazie a `ripristina()`, che riscrive un `new` con lo stesso id:
+nel log in sola aggiunta non si toglie un `del`, gli si scrive sopra.
+
+**La colonna `chiuso` a sette giorni**, con in fondo la riga che conta le altre e apre la
+ricerca. Niente archiviazione manuale: le vecchie restano nel log.
+
+**L'indicatore a pallino** in testata, verde muto quando è in pari, giallo col numero in
+coda, rosso quando GitHub non risponde. I tre colori **non vengono dal design** e non sono
+l'accento: il terracotta resta del ritardo. Da far confermare.
 
 **Quattro campi nuovi**, tutti riempiti dal classificatore e nessuno dei quali costa un tap
 alla cattura: `src` (da dove è entrata la nota — un fatto, mentre il canale dedotto vive

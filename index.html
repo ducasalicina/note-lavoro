@@ -30,7 +30,10 @@
 
     <div class="azioni">
       <!-- Stato della sincronizzazione: discreto, fuori dai piedi, sempre leggibile. -->
-      <button id="stato-sync" class="stato-sync" type="button" title="Impostazioni e sincronizzazione">non configurato</button>
+      <button id="stato-sync" class="stato-sync" type="button">
+        <span class="stato-sync__pallino" aria-hidden="true"></span>
+        <span id="stato-sync-testo" class="stato-sync__testo"></span>
+      </button>
       <button id="cerca" class="bottone-icona" type="button" title="Cerca" aria-label="Cerca" aria-expanded="false">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
           <circle cx="6.8" cy="6.8" r="4.6"></circle><line x1="10.3" y1="10.3" x2="14" y2="14"></line>

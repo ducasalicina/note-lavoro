@@ -129,6 +129,32 @@ export async function elimina(id) {
   await registra({ ev: 'del', id });
 }
 
+/** L'evento contrario di `elimina`: riscrive la nota com'era, stesso id.
+ *  Il log è in sola aggiunta, quindi non si "toglie" un `del`: gli si scrive sopra un
+ *  `new` che, rigiocato dopo, rimette l'elemento al suo posto su tutti i dispositivi.
+ *
+ *  `item` è lo stato RIGIOCATO al momento dell'eliminazione, non l'evento di creazione:
+ *  il `new` porta quindi dentro i valori attuali, e i vecchi `upd` — che nel rigioco
+ *  capitano prima di lui, perché hanno un `at` più vecchio — cadono su `if (!it)` senza
+ *  fare niente. È il motivo per cui una nota molto modificata torna com'era e non com'era
+ *  nata.
+ *
+ *  `creato` invece il `new` lo riscriverebbe con l'ora del ripristino, e non si può
+ *  ovviare mettendo un `at` più vecchio: l'evento finirebbe prima del `del` e verrebbe
+ *  cancellato di nuovo. Passa quindi dalla patch, che si applica dopo. */
+export async function ripristina(item) {
+  await registra({
+    ev: 'new', id: item.id, t: item.testo, cat: item.cat, da: item.da,
+    tag: item.tag, pr: item.priorita, sc: item.scadenza
+  });
+  const resto = {};
+  for (const k of ['stato', 'rc', 'ticket', 'esito', 'src', 'fs', 'pf', 'ca', 'img', 'creato']) {
+    if (item[k] != null) resto[k] = item[k];
+  }
+  if (Object.keys(resto).length) await registra({ ev: 'upd', id: item.id, p: resto });
+  return stato.get(item.id);
+}
+
 /** Le immagini restano sul dispositivo: nel log viaggia solo il flag. */
 export async function allegaImmagine(id, file, latoMax = 1280, q = 0.7) {
   const blob = await ridimensiona(file, latoMax, q);
@@ -190,7 +216,8 @@ export const inCoda = () => prom(tx('coda').getAll()).then(v => v.length);
 /** Quando è andata a buon fine l'ultima sincronizzazione, o `undefined`. */
 export const ultimaSync = () => prom(tx('meta').get('ultimaSync'));
 
-/** Svuota l'archivio locale e basta: il repo dati non viene toccato.
+/** Svuota l'archivio locale e basta: il repo dati non viene toccato, quindi alla prima
+    sincronizzazione gli eventi tornano indietro da GitHub e le note riappaiono.
     Serve a ripartire puliti dopo le prove, senza passare dalla console. */
 export async function svuota() {
   for (const nome of ['eventi', 'coda', 'immagini', 'meta']) {
@@ -198,6 +225,21 @@ export async function svuota() {
   }
   stato = new Map();
   seq = 0;
+}
+
+/** Cancella per davvero: azzera i log e lo snapshot nel repo dati, poi l'archivio locale.
+    Questa non torna indietro da nessuna parte — è l'unica operazione dell'applicazione
+    che il log degli eventi non sa annullare, perché cancella il log stesso. */
+export async function cancellaTutto() {
+  const lista = await gh(`/contents/log?ref=${cfg.ramo}`) || [];
+  for (const f of lista.filter(f => f.name.endsWith('.ndjson'))) {
+    const r = await leggi(`log/${f.name}`);
+    await scrivi(`log/${f.name}`, '', r.sha, 'cancellazione totale richiesta dall\'app');
+  }
+  const snap = await leggi('snapshot.json');
+  if (snap.sha) await scrivi('snapshot.json', '', snap.sha, 'cancellazione totale');
+  await svuota();
+  return lista.length;
 }
 
 /* ---------- GitHub ---------- */

@@ -191,7 +191,12 @@ export const CATEGORIE = [
    Servono invece le forme scritte diversamente: staccate, troncate, con la sigla. */
 export const PIATTAFORME = [
   { nome: 'MyBRT',       cat: 'POR', peso: 4, kw: ['mybrt', 'my brt'] },
-  { nome: 'EasySpedWeb', cat: 'POR', peso: 4, kw: ['easyspedweb', 'easysped web', 'easysped', ['esw', 3]] },
+  /* `normalizza()` non tocca i punti, quindi "e.s.w." arriva intatto: il termine
+     `e.s.w` senza punto finale copre entrambe le forme, perché il confine di parola
+     dopo la "w" cade sul punto. */
+  { nome: 'EasySpedWeb', cat: 'POR', peso: 4,
+    kw: ['easyspedweb', 'easysped web', 'easysped', 'easyweb', 'easy web', 'easy sped',
+         ['esw', 3], ['e.s.w', 3]] },
   { nome: 'WooCommerce', cat: 'ECO', peso: 4, kw: ['woocommerce', 'woo commerce'] },
   { nome: 'Shopify',     cat: 'ECO', peso: 4, kw: ['shopify'] },
   { nome: 'PrestaShop',  cat: 'ECO', peso: 4, kw: ['prestashop', 'presta shop'] },

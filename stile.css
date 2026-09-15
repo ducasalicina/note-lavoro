@@ -225,26 +225,44 @@ input, button { font-family: inherit; }
 .bottone-icona:hover { background: var(--quieto-4); }
 .bottone-icona[aria-expanded="true"] { background: var(--quieto-3); border-color: var(--bordo-scuro); }
 
-/* Indicatore di sincronizzazione: discreto, e cliccabile per aprire le impostazioni. */
+/* Indicatore di sincronizzazione: un pallino, e una parola solo quando serve dirne una.
+   I tre colori di stato non sono nel design e non sono l'accento: il terracotta resta
+   del ritardo, e il rosso qui sotto è volutamente più cupo e meno arancio per non
+   confondersi con lui. Da far confermare al design. */
 .stato-sync {
   flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   padding: 4px 9px;
   border: 1px solid var(--bordo);
   border-radius: var(--r-piccolo);
   background: var(--carta-quieta);
   font: 400 11.5px var(--font);
+  font-variant-numeric: tabular-nums;
   color: var(--tenue-2);
   cursor: pointer;
   white-space: nowrap;
 }
 .stato-sync:hover { background: var(--quieto-3); }
-.stato-sync--spento { color: var(--tenue); border-style: dashed; }
-.stato-sync--coda { color: var(--testo-2); background: var(--quieto-3); }
-.stato-sync--guasto {
-  color: var(--ritardo-testo);
-  background: var(--ritardo-sfondo);
-  border-color: var(--ritardo-linea);
+
+.stato-sync__pallino {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--bordo-scuro);
 }
+/* Vuoto non deve lasciare il gap appeso. */
+.stato-sync__testo:empty { display: none; }
+
+.stato-sync--pari .stato-sync__pallino { background: #4a7c59; }
+.stato-sync--coda .stato-sync__pallino { background: #b8842b; }
+.stato-sync--guasto .stato-sync__pallino { background: #9b2c2c; }
+
+.stato-sync--spento { border-style: dashed; color: var(--tenue); }
+.stato-sync--coda { color: var(--testo-2); background: var(--quieto-3); }
+.stato-sync--guasto { color: #9b2c2c; background: var(--carta-quieta); }
 
 .interruttore {
   display: flex;
@@ -303,10 +321,24 @@ input, button { font-family: inherit; }
 
 /* Fascia 2 — scadenze */
 
-/* Una riga sola: conta e filtra, non elenca. */
-.fascia--scadenze { padding: 7px 9px; }
+/* Una riga sola: conta e filtra, non elenca. Nessun riquadro, nessun separatore. */
+.fascia--scadenze {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 9px;
+}
+
+.fascia__nome {
+  flex: none;
+  padding-left: 4px;
+  font: 400 11.5px var(--font);
+  color: var(--tenue);
+}
 
 .contatori {
+  flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -454,6 +486,20 @@ input, button { font-family: inherit; }
   pointer-events: none;
 }
 
+/* Le chiusure più vecchie non spariscono: restano nel log e si ritrovano cercando. */
+.colonna__oltre {
+  margin-top: 2px;
+  padding: 9px 12px;
+  border: 1px dashed var(--bordo);
+  border-radius: var(--r-medio);
+  background: transparent;
+  font: 12px/1.4 var(--font);
+  color: var(--tenue);
+  text-align: center;
+  cursor: pointer;
+}
+.colonna__oltre:hover { background: var(--quieto-3); color: var(--testo-2); }
+
 .colonna__vuota {
   padding: 14px 12px;
   border: 1px dashed var(--bordo);
@@ -595,6 +641,13 @@ input, button { font-family: inherit; }
   transition: transform .15s cubic-bezier(.2, .7, .3, 1);
 }
 .riga.is-swipe .nota { transition: none; }
+
+/* Oltre la soglia lunga si sta eliminando, e deve vedersi prima di lasciare il dito. */
+.riga.is-elimina .riga__scoperta { background: #9b2c2c; }
+.riga.is-elimina .nota {
+  background: #fdf1ee;
+  border-color: #e7b9ad;
+}
 
 /* ─── Dettaglio ──────────────────────────────────────────────────────────── */
 

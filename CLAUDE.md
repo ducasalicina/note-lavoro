@@ -43,6 +43,21 @@ pubblica è un guscio vuoto, senza token non mostra nulla.
 Il token è fine-grained, limitato al solo repo dati, permesso Contents read/write,
 conservato in `localStorage`. L'app deve offrire un modo evidente per cancellarlo.
 
+### Svuotare la copia locale non è cancellare
+
+Sono due azioni distinte nel pannello, e la differenza va detta nell'etichetta, non
+scoperta dopo:
+
+- **Svuota copia locale** tocca solo IndexedDB. Gli eventi restano su GitHub, quindi alla
+  prima sincronizzazione le note tornano indietro da sole. Serve a ripartire puliti dopo
+  le prove, non a disfare il lavoro.
+- **Cancella tutto, anche su GitHub** azzera i log e lo snapshot nel repo dati, poi la
+  copia locale. **Questa non torna indietro da nessuna parte**: è l'unica operazione che
+  il log degli eventi non sa annullare, perché cancella il log stesso.
+
+Entrambe chiedono un secondo tocco. È l'eccezione al «mai sei sicuro?» di §5, e vale solo
+qui: quella regola poggia sul fatto che l'annullamento è gratis, e per queste due non lo è.
+
 ## 4. Struttura dei file
 
 ```
@@ -155,6 +170,25 @@ che questo documento non aveva mai elencato, come è successo a `ticket`.
 `attesa` significa "fermo su terzi" (IT ERP, fornitore, cliente) e va tenuto separato
 visivamente: non è roba che dipende da lui, e mescolarla fa sembrare il board intasato.
 Mostra i giorni di attesa accanto alla voce.
+
+### La colonna `chiuso` mostra sette giorni, non tutto
+
+In colonna stanno solo le chiusure degli ultimi sette giorni; in fondo una riga dice
+quante altre ce ne sono e apre la ricerca. **Le più vecchie non spariscono e non si
+archiviano a mano:** restano nel log e si ritrovano cercando, perché il valore dello
+strumento sta proprio nel poter rivedere cosa è stato chiuso e quando. Cercando, la
+finestra dei sette giorni non si applica.
+
+### L'eliminazione
+
+Sta nel dettaglio, e su telefono in uno **swipe lungo a sinistra** — soglia 150px contro
+i 70 che mandano in corso, con la card che vira al rosso strada facendo, così si vede
+dove si sta andando prima di lasciare il dito.
+
+Niente conferma, niente tap lungo (è già preso dal dettaglio): scrive un evento `del`
+come le altre azioni, e la barretta **Annulla** lo copre riscrivendo un `new` con lo
+stesso id. È una protezione migliore di un "sei sicuro?", che dopo la ventesima volta si
+tocca senza leggerlo.
 
 ### Limite WIP su `corso`
 
@@ -287,11 +321,30 @@ se la frase attesa è sbagliata si corregge la prova.
 - Gestione errori: la rete fallisce in silenzio e si riprova, tutto il resto è visibile.
 - CSS: solo variabili e classi definite dal design. Se ti serve qualcosa che non c'è,
   segnalalo invece di inventare colori e spaziature.
+
 - **Si nasconde con `hidden`, mai con `style.display`.** In cima a `stile.css` c'è
   `[hidden] { display: none !important; }` e non va tolta: `hidden` vale `display: none`
   solo nel foglio del browser, e **qualsiasi** regola d'autore lo batte a prescindere
   dalla specificità. Senza quella riga `.dettaglio { display: flex }` teneva a schermo
   pannelli che il codice considerava chiusi.
+
+### Debito aperto: tre colori scelti a mano, da riconciliare col design
+
+L'indicatore di sincronizzazione usa tre colori **che il design non ha mai fornito**.
+Sono in `stile.css`, sulle classi `.stato-sync--*`, e vanno riconciliati quando arriverà
+il foglio definitivo — sostituiti con i valori veri, o confermati e promossi a variabili:
+
+| dove | valore | perché quello |
+|---|---|---|
+| in pari | `#4a7c59` | verde spento, non squillante: quando è tutto a posto non deve chiamare |
+| in coda | `#b8842b` | ambra calda, di casa nella palette |
+| non raggiungibile | `#9b2c2c` | rosso **cupo e poco arancio, apposta**: il terracotta è del ritardo e i due non si devono confondere |
+
+Lo stesso rosso è usato dallo scorrimento che elimina (`.riga.is-elimina`), con un fondo
+carta `#fdf1ee` e un bordo `#e7b9ad` che sono anch'essi fuori palette.
+
+Finché non arriva il foglio, sono gli unici colori dell'applicazione a non venire dal
+design: non aggiungerne altri per analogia.
 
 ### Le prove guardano quello che si vede, non quello che il codice crede
 
