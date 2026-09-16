@@ -33,6 +33,16 @@
   --ritardo-forte:  #96391a;
   --ritardo-pieno:  #b04a26;
 
+  /* Colore per area, non per categoria: quattordici tinte non si distinguono a colpo
+     d'occhio. Sono le cinque tinte più lontane fra loro che restano fuori dalla banda del
+     terracotta, perché quello significa ritardo e non deve avere sosia. Non vengono dal
+     design: vanno riconciliate col foglio definitivo (§9 del CLAUDE.md). */
+  --area-accessi:   #7b5f8c;
+  --area-portali:   #4f6d8f;
+  --area-integraz:  #2f7d7a;
+  --area-operativo: #5d7f52;
+  --area-sistemi:   #8a6d3b;
+
   /* Angoli ampi, ombre morbide */
   --r-guscio: 22px;
   --r-fascia: 18px;
@@ -525,12 +535,26 @@ input, button { font-family: inherit; }
 .nota[draggable="true"] { cursor: grab; }
 .nota.is-trascinata { opacity: .4; }
 
+/* La barretta dell'area. Sta sul bordo sinistro, mai sul fondo: il fondo è carta e deve
+   restare carta. Senza categoria resta del colore del bordo — un'assenza, non un colore
+   in più da imparare. */
+.nota { border-left-width: 3px; }
+.nota[data-area="ACCESSI"]   { border-left-color: var(--area-accessi); }
+.nota[data-area="PORTALI"]   { border-left-color: var(--area-portali); }
+.nota[data-area="INTEGRAZ"]  { border-left-color: var(--area-integraz); }
+.nota[data-area="OPERATIVO"] { border-left-color: var(--area-operativo); }
+.nota[data-area="SISTEMI"]   { border-left-color: var(--area-sistemi); }
+
 .nota__categoria {
   align-self: flex-start;
   display: flex;
   align-items: baseline;
-  gap: 6px;
+  /* Va a capo dentro la card invece di uscirne: con "EasySpedWeb" il chip della
+     piattaforma, che non si stringe, spingeva la riga oltre il bordo. */
+  flex-wrap: wrap;
+  gap: 6px 6px;
   min-width: 0;
+  max-width: 100%;
   font: 400 11.5px var(--font);
   color: var(--tenue-2);
 }
@@ -538,17 +562,24 @@ input, button { font-family: inherit; }
 
 .nota__codice { font-weight: 600; letter-spacing: .02em; }
 
-/* Dove succede, non che cosa è: il contorno la tiene distinta dalla categoria. */
+/* Dove succede, non che cosa è: il contorno la tiene distinta dalla categoria.
+   Prima era `flex: none`: un nome lungo non andava a capo e non si stringeva, quindi
+   usciva dalla card. Ora va a capo, e se da sola non ci sta nemmeno a capo, tronca. */
 .nota__piattaforma {
-  flex: none;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
   padding: 0 6px;
   border: 1px solid var(--bordo);
   border-radius: var(--r-minimo);
   font-size: 10.5px;
   color: var(--tenue);
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 .nota__nome-categoria {
+  min-width: 0;
   font-size: 10.5px;
   color: var(--tenue);
   overflow: hidden;
@@ -584,6 +615,31 @@ input, button { font-family: inherit; }
 
 .nota__priorita { font: 600 11.5px var(--font); color: var(--ritardo-testo); }
 .nota__ferma { font: 11.5px var(--font); color: var(--tenue-2); }
+
+/* In Attesa prende il posto del titolo: è quello che serve leggere per ricollegare la
+   nota. I giorni gli stanno accanto, non in fondo alla riga dei chip. */
+.nota__attesa {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.nota__aspetto {
+  flex: 1;
+  min-width: 0;
+  font: 500 13.5px/1.38 var(--font);
+  color: var(--testo);
+  text-wrap: pretty;
+  overflow-wrap: anywhere;
+}
+.nota__giorni {
+  flex: none;
+  padding: 2px 7px;
+  border-radius: var(--r-minimo);
+  background: var(--quieto-5);
+  font: 500 11.5px var(--font);
+  font-variant-numeric: tabular-nums;
+  color: var(--tenue-2);
+}
 
 .nota__rimanda {
   margin-left: auto; /* staccato dai chip: è un'azione, non un'etichetta */
@@ -767,10 +823,28 @@ input, button { font-family: inherit; }
 }
 
 .area { display: flex; flex-direction: column; gap: 5px; }
+/* Il pallino è la legenda dei colori delle card: è l'unico posto dove i nomi delle
+   cinque aree si vedono tutti insieme, e senza di lui le barrette non si imparano. */
 .area__nome {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font: 400 11px var(--font);
   color: var(--tenue-2);
 }
+.area__nome::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--bordo-scuro);
+}
+.area[data-area="ACCESSI"]   .area__nome::before { background: var(--area-accessi); }
+.area[data-area="PORTALI"]   .area__nome::before { background: var(--area-portali); }
+.area[data-area="INTEGRAZ"]  .area__nome::before { background: var(--area-integraz); }
+.area[data-area="OPERATIVO"] .area__nome::before { background: var(--area-operativo); }
+.area[data-area="SISTEMI"]   .area__nome::before { background: var(--area-sistemi); }
 
 .categorie { display: flex; flex-wrap: wrap; gap: 5px; }
 .categorie--suggerite { margin-bottom: 2px; }
@@ -827,6 +901,38 @@ input, button { font-family: inherit; }
   border-color: var(--testo);
   color: var(--carta-quieta);
 }
+
+/* ─── La domanda dell'Attesa ─────────────────────────────────────────────── */
+/* L'unica dell'applicazione. Se le si aggiunge un campo diventa un modulo, e i moduli
+   riportano la compilazione al costo dell'Excel abbandonato. */
+
+.attesa__foglio {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 17px 19px 15px;
+  background: var(--carta);
+  border-radius: var(--r-fascia);
+  box-shadow: 0 18px 50px rgba(38, 34, 32, .28);
+}
+
+.attesa__domanda { font: 500 14px var(--font); color: var(--testo); }
+
+.attesa__campo {
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--bordo);
+  border-radius: var(--r-medio);
+  background: var(--carta-quieta);
+  font: 13.5px var(--font);
+  color: var(--testo);
+}
+.attesa__campo:focus { outline: none; border-color: var(--bordo-scuro); }
+
+.attesa__aiuto { font: 400 11.5px var(--font); color: var(--tenue-2); }
 
 .guasto {
   margin: 0;
@@ -948,6 +1054,11 @@ input, button { font-family: inherit; }
     padding: 16px 14px calc(22px + env(safe-area-inset-bottom));
   }
   .categoria-scelta__nome { max-width: 150px; }
+
+  /* La domanda resta una finestrella, non diventa un foglio: sale la tastiera e deve
+     starci sopra. `padding` va riportato perché `.dettaglio` qui lo azzera. */
+  .attesa { padding: 14px; align-items: flex-end; }
+  .attesa__campo { font-size: 16px; } /* iOS: sotto i 16px zooma da solo */
 }
 
 @media (min-width: 900px) {

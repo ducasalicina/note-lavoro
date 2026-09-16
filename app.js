@@ -163,6 +163,10 @@ function testoData(data) {
 
 const nomeCategoria = (cod) => categoria(cod)?.nome || '';
 
+// Il colore sta sull'area, non sulla categoria: quattordici tinte non si distinguono a
+// colpo d'occhio, cinque sì. Serve a riconoscere di cosa parla una card senza leggerla.
+const areaDi = (cod) => categoria(cod)?.area || null;
+
 // ─── Criteri della fascia ────────────────────────────────────────────────────
 // La fascia non elenca più le note: una sola riga di contatori che filtrano il board.
 // Elencandole, la stessa nota compariva fino a tre volte nella stessa schermata — una
@@ -202,7 +206,7 @@ function visibili(chiave) {
     if (chiave === 'chiuso' && !q && giorniDa(n.agg) > GIORNI_CHIUSO) return false;
     if (scelta && !scelta.test(n)) return false;
     if (!q) return true;
-    const dove = [n.testo, n.da || '', n.cat || '', n.ticket || '', (n.tag || []).join(' ')].join(' ');
+    const dove = [n.testo, n.aspetto || '', n.da || '', n.cat || '', n.ticket || '', (n.tag || []).join(' ')].join(' ');
     return dove.toLowerCase().includes(q);
   });
 }
@@ -313,6 +317,9 @@ function disegnaNota(n) {
   carta.tabIndex = 0;
   carta.setAttribute('role', 'button');
   carta.setAttribute('aria-label', `Apri: ${n.testo}`);
+  // La barretta colorata a sinistra la disegna il CSS da qui. Senza categoria resta del
+  // colore del bordo: un'assenza, non un sesto colore da imparare.
+  if (areaDi(n.cat)) carta.dataset.area = areaDi(n.cat);
 
   // Il codice da solo non dice niente a chi non lo sa già: accanto ci va il nome esteso.
   const cat = nodo('span', 'nota__categoria');
@@ -328,7 +335,18 @@ function disegnaNota(n) {
   if (n.pf) cat.append(nodo('span', 'nota__piattaforma', n.pf));
   carta.append(cat);
 
-  carta.append(nodo('div', 'nota__titolo', n.testo));
+  // In Attesa al posto del testo va quello che si sta aspettando, con accanto i giorni:
+  // con nove note ferme il testo originale non dice a cosa sono appese, e per ricollegarle
+  // bisognava riaprirle una per una. L'originale non si perde, sta nel dettaglio.
+  const inAttesa = n.stato === 'attesa' && n.aspetto;
+  if (inAttesa) {
+    const blocco = nodo('div', 'nota__attesa');
+    blocco.append(nodo('span', 'nota__aspetto', n.aspetto));
+    blocco.append(nodo('span', 'nota__giorni', `${giorniDa(n.agg)} g`));
+    carta.append(blocco);
+  } else {
+    carta.append(nodo('div', 'nota__titolo', n.testo));
+  }
 
   const meta = nodo('div', 'nota__meta');
   // Sul chiuso al posto della scadenza va l'esito: è l'unico riscontro visivo che ho
@@ -341,7 +359,7 @@ function disegnaNota(n) {
   }
   if (n.da) meta.append(nodo('span', 'nota__da', n.da));
   if (n.priorita > 0 && n.stato !== 'chiuso') meta.append(nodo('span', 'nota__priorita', n.priorita > 1 ? '!!' : '!'));
-  if (n.stato === 'attesa') meta.append(nodo('span', 'nota__ferma', `ferma da ${giorniDa(n.agg)} g`));
+  if (n.stato === 'attesa' && !inAttesa) meta.append(nodo('span', 'nota__ferma', `ferma da ${giorniDa(n.agg)} g`));
   // Rimanda si stacca a destra: è un'azione, e in mezzo agli altri sembrava un'etichetta.
   if (scaduto(n)) meta.append(bottoneRimanda(n));
   if (meta.childElementCount) carta.append(meta);
@@ -497,15 +515,55 @@ async function aggiungi(riga) {
 async function sposta(id, verso) {
   const nota = tutte().find((n) => n.id === id);
   if (!nota || nota.stato === verso) return;
-  const prima = { stato: nota.stato, rc: nota.rc ?? null };
+  const prima = { stato: nota.stato, rc: nota.rc ?? null, aspetto: nota.aspetto ?? null };
   await Store.modifica(id, { stato: verso, rc: nuovoRicontrollo({ ...nota, stato: verso }) });
   disegna();
 
   const nome = STATI.find((s) => s.chiave === verso).nome;
-  offriAnnulla(`Spostata in ${nome}`, async () => {
+  const annulla = () => offriAnnulla(`Spostata in ${nome}`, async () => {
     await Store.modifica(id, prima); // l'evento contrario, non un dialogo "sei sicuro?"
     disegna();
   });
+
+  // Annulla aspetta che la domanda sia finita: il pannello la coprirebbe, e i cinque
+  // secondi se ne andrebbero mentre uno scrive.
+  if (verso === 'attesa') chiediAttesa(id, annulla);
+  else annulla();
+}
+
+// ─── L'unica domanda dell'applicazione ───────────────────────────────────────
+// Una riga sola, e arriva quando la nota è già in Attesa: non è un passaggio obbligato,
+// è un'occasione. Se cresce di un campo diventa un modulo, e i moduli non si compilano.
+
+let attesaId = null;
+let attesaPoi = null;
+
+function chiediAttesa(id, poi) {
+  const n = tutte().find((x) => x.id === id);
+  attesaId = id;
+  attesaPoi = poi;
+  campoAttesa.value = n?.aspetto || '';
+  $('#attesa').hidden = false;
+  campoAttesa.focus();
+  campoAttesa.select();
+}
+
+/** `salva` a false è lo sbrigo: Esc o un tocco fuori non scrivono niente. Con Invio si
+ *  scrive quello che c'è, e il vuoto vale `null`, che è anche il modo di togliere una
+ *  risposta sbagliata. Se il valore non cambia non parte nessun evento: il log è per
+ *  sempre, e non merita una riga per una domanda saltata. */
+async function chiudiAttesa(salva) {
+  if ($('#attesa').hidden) return;
+  const id = attesaId;
+  const poi = attesaPoi;
+  const risposta = campoAttesa.value.trim() || null;
+  attesaId = null;
+  attesaPoi = null;
+  $('#attesa').hidden = true;
+
+  const n = id != null ? tutte().find((x) => x.id === id) : null;
+  if (salva && n && (n.aspetto || null) !== risposta) await correggi(id, { aspetto: risposta });
+  if (poi) poi();
 }
 
 /** Un tap e basta: nessun dialogo, nessuna motivazione. Rimandare dieci volte è un dato
@@ -597,6 +655,9 @@ function disegnaDettaglio() {
   foglio.append(campoData('Scadenza', n.scadenza, 'quando è dovuta', (v) => correggi(n.id, { scadenza: v })));
   foglio.append(campoData('Ricontrollo', n.rc || null, 'quando la rivedo', (v) => correggi(n.id, { rc: v })));
   foglio.append(campoTesto('Numero ticket', n.ticket || '', 'vuoto = fuori dal sistema ufficiale', (v) => correggi(n.id, { ticket: v || null })));
+  // La risposta alla domanda si corregge qui, o non si correggerebbe più: la domanda
+  // arriva una volta sola, allo spostamento.
+  if (n.stato === 'attesa') foglio.append(campoTesto('Cosa aspetti', n.aspetto || '', 'chi o cosa tiene ferma la nota', (v) => correggi(n.id, { aspetto: v || null })));
   if (n.stato === 'chiuso') foglio.append(sezioneEsito(n));
 
   const sezElimina = nodo('section', 'dettaglio__sezione');
@@ -1105,6 +1166,15 @@ function chiudiRicerca() {
   disegna();
 }
 
+const campoAttesa = $('#attesa-campo');
+
+// È un form apposta: così Invio lo chiude senza che serva intercettare un tasto.
+$('#attesa-foglio').addEventListener('submit', (e) => {
+  e.preventDefault();
+  chiudiAttesa(true);
+});
+$('#attesa-fondo').addEventListener('click', () => chiudiAttesa(false));
+
 $('#dettaglio-fondo').addEventListener('click', chiudiDettaglio);
 $('#config-fondo').addEventListener('click', chiudiConfig);
 $('#impostazioni').addEventListener('click', apriConfig);
@@ -1112,7 +1182,8 @@ $('#stato-sync').addEventListener('click', apriConfig);
 
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
-  if (apertaId != null) chiudiDettaglio();
+  if (!$('#attesa').hidden) chiudiAttesa(false);
+  else if (apertaId != null) chiudiDettaglio();
   else if (!$('#config').hidden) chiudiConfig();
 });
 

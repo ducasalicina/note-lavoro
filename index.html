@@ -81,6 +81,18 @@
   <div id="config-foglio" class="dettaglio__foglio"></div>
 </div>
 
+<!-- L'unico punto dell'app che fa una domanda, e la fa a spostamento già avvenuto:
+     se la salti la nota è in Attesa lo stesso. Una riga, un campo, nient'altro. -->
+<div id="attesa" class="dettaglio attesa" role="dialog" aria-modal="true" aria-label="Cosa aspetti?" hidden>
+  <div id="attesa-fondo" class="dettaglio__fondo"></div>
+  <form id="attesa-foglio" class="attesa__foglio">
+    <label id="attesa-domanda" class="attesa__domanda" for="attesa-campo">Cosa aspetti?</label>
+    <input id="attesa-campo" class="attesa__campo" type="text" autocomplete="off"
+           placeholder="la risposta di IT ERP, il preventivo del fornitore…">
+    <span class="attesa__aiuto">Invio per salvare, Esc per saltare</span>
+  </form>
+</div>
+
 <!-- Nessun dialogo di conferma: ogni azione lascia 5 secondi per annullare. -->
 <div id="annulla" class="annulla" role="status" hidden>
   <span id="annulla-testo" class="annulla__testo"></span>
