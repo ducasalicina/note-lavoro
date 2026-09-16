@@ -209,6 +209,12 @@ input, button { font-family: inherit; }
   border: 1px solid var(--bordo);
   color: var(--tenue);
 }
+.etichetta--cliente {
+  background: transparent;
+  border: 1px solid var(--bordo);
+  color: var(--tenue);
+  font-variant-numeric: tabular-nums;
+}
 
 .azioni {
   flex: none;
@@ -328,6 +334,22 @@ input, button { font-family: inherit; }
   color: var(--testo-2);
 }
 .ricerca__esc { font: 11px var(--mono); color: var(--tenue-2); flex: none; }
+
+/* Un filtro che non si vede è un filtro che non si toglie: il codice resta in riga, con
+   la sua croce, finché il board è ristretto a quel cliente. */
+.ricerca__cliente {
+  flex: none;
+  padding: 4px 9px;
+  border: 0;
+  border-radius: var(--r-piccolo);
+  background: var(--testo);
+  color: var(--carta-quieta);
+  font: 500 11.5px var(--font);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ricerca__cliente:hover { background: #46413a; }
 
 /* Fascia 2 — scadenze */
 
@@ -631,6 +653,17 @@ input, button { font-family: inherit; }
   text-wrap: pretty;
   overflow-wrap: anywhere;
 }
+/* Il testo originale sotto la risposta: una riga sola, troncata. Chi vuole il resto passa
+   dal `title`, o dal dettaglio. */
+.nota__originale {
+  margin-top: -2px;
+  font: 400 11.5px var(--font);
+  color: var(--tenue-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .nota__giorni {
   flex: none;
   padding: 2px 7px;
@@ -653,6 +686,22 @@ input, button { font-family: inherit; }
   cursor: pointer;
 }
 .nota__rimanda:hover { background: var(--quieto-3); }
+
+/* Il codice cliente: cifre, quindi tabellari, e cliccabile perché la domanda che uno si
+   fa guardandolo è sempre «cos'altro ha aperto questo cliente?». */
+.nota__cliente {
+  flex: none;
+  padding: 2px 7px;
+  border: 1px solid var(--bordo);
+  border-radius: var(--r-minimo);
+  background: transparent;
+  font: 500 11.5px var(--font);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .02em;
+  color: var(--tenue-2);
+  cursor: pointer;
+}
+.nota__cliente:hover { background: var(--quieto-3); color: var(--testo-2); }
 
 /* Il nome per esteso invece delle iniziali in un cerchio: "MB" non è nessuno. */
 .nota__da {
@@ -737,6 +786,10 @@ input, button { font-family: inherit; }
   border-radius: var(--r-fascia);
   box-shadow: 0 18px 50px rgba(38, 34, 32, .28);
 }
+
+/* Il foglio prende il fuoco quando la nota è già classificata, così Esc chiude anche
+   senza toccare niente: è un contenitore, non un comando, e non deve mostrare l'anello. */
+.dettaglio__foglio:focus:not(:focus-visible) { outline: none; }
 
 .dettaglio__testa {
   display: flex;
@@ -883,6 +936,33 @@ input, button { font-family: inherit; }
 .categorie--suggerite .categoria-scelta {
   border-style: dashed;
   border-color: var(--bordo-scuro);
+}
+
+/* Cinque voci in fila, tutte della stessa larghezza: la fila si legge come una scala,
+   e la posizione di quella accesa dice a colpo d'occhio a che punto è la nota. */
+.stati { display: flex; gap: 4px; }
+.stato-scelta {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 4px;
+  border: 1px solid var(--bordo);
+  border-radius: var(--r-piccolo);
+  background: var(--carta-quieta);
+  font: 500 11.5px var(--font);
+  color: var(--tenue-2);
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.stato-scelta:hover { background: var(--quieto-3); }
+/* Come la colonna: tratteggio, perché "fermo su terzi" non è roba che dipende da me. */
+.stato-scelta--attesa { border-style: dashed; border-color: var(--bordo-scuro); }
+.stato-scelta.is-attivo {
+  background: var(--testo);
+  border-color: var(--testo);
+  border-style: solid;
+  color: var(--carta-quieta);
 }
 
 .esiti { display: flex; flex-wrap: wrap; gap: 5px; }

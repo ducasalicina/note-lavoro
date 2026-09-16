@@ -3,7 +3,7 @@
 // Su desktop le cinque liste stanno affiancate e si trascina; su telefono una lista per
 // volta e si scorre la riga, perché trascinare card su schermo piccolo è solo frustrazione.
 
-import { parse, classifica, CATEGORIE, AREE, categoria } from './brt-classificatore.js';
+import { parse, classifica, CATEGORIE, AREE, categoria, filiale } from './brt-classificatore.js';
 import * as Store from './brt-store.js';
 import { seminaEsempi } from './dati-esempio.js';
 
@@ -101,6 +101,7 @@ let rete = { guasta: false };
 let stat = 'inbox'; // lista mostrata sul telefono
 let fascia = null; // contatore attivo nella fascia, che filtra il board
 let filtro = '';
+let cliente = null; // codice cliente su cui è ristretto il board
 let trascinata = null;
 let apertaId = null; // nota aperta nel dettaglio
 let scadutoAnnulla = null;
@@ -202,11 +203,15 @@ function visibili(chiave) {
   const scelta = FASCE.find((f) => f.chiave === fascia);
   return tutte().filter((n) => {
     if (n.stato !== chiave) return false;
-    // Cercando si vede tutto: è il modo per ritrovare le chiusure vecchie.
-    if (chiave === 'chiuso' && !q && giorniDa(n.agg) > GIORNI_CHIUSO) return false;
+    // Il cliente è un campo, non del testo: si confronta il codice, se no una nota che
+    // nomina quel numero per altri motivi finirebbe fra le sue.
+    if (cliente && n.cl !== cliente) return false;
+    // Cercando si vede tutto: è il modo per ritrovare le chiusure vecchie. Guardare un
+    // cliente vale lo stesso, perché di un cliente si vuole la storia, non la settimana.
+    if (chiave === 'chiuso' && !q && !cliente && giorniDa(n.agg) > GIORNI_CHIUSO) return false;
     if (scelta && !scelta.test(n)) return false;
     if (!q) return true;
-    const dove = [n.testo, n.aspetto || '', n.da || '', n.cat || '', n.ticket || '', (n.tag || []).join(' ')].join(' ');
+    const dove = [n.testo, n.aspetto || '', n.da || '', n.cat || '', n.cl || '', n.ticket || '', (n.tag || []).join(' ')].join(' ');
     return dove.toLowerCase().includes(q);
   });
 }
@@ -214,6 +219,7 @@ function visibili(chiave) {
 // ─── Rendering ───────────────────────────────────────────────────────────────
 
 function disegna() {
+  disegnaCliente();
   disegnaScadenze();
   disegnaBarra();
   disegnaColonne();
@@ -293,7 +299,7 @@ function disegnaColonne() {
     collegaRilascio(corpo, s.chiave);
 
     const elenco = visibili(s.chiave);
-    const vecchie = s.chiave === 'chiuso' && !filtro.trim() ? chiuseVecchie() : 0;
+    const vecchie = s.chiave === 'chiuso' && !filtro.trim() && !cliente ? chiuseVecchie() : 0;
 
     for (const n of elenco) corpo.append(desktop() ? disegnaNota(n) : disegnaRiga(n));
     if (elenco.length === 0 && vecchie === 0) {
@@ -344,6 +350,12 @@ function disegnaNota(n) {
     blocco.append(nodo('span', 'nota__aspetto', n.aspetto));
     blocco.append(nodo('span', 'nota__giorni', `${giorniDa(n.agg)} g`));
     carta.append(blocco);
+    // Sotto, in piccolo e su una riga sola, il testo originale: serve a riconoscere la
+    // nota a colpo d'occhio, non a rileggerla. Per intero sta nel `title` — l'app si usa
+    // al 90% da desktop, quindi l'hover è un posto buono dove metterlo — e nel dettaglio.
+    const originale = nodo('div', 'nota__originale', n.testo);
+    originale.title = n.testo;
+    carta.append(originale);
   } else {
     carta.append(nodo('div', 'nota__titolo', n.testo));
   }
@@ -357,6 +369,7 @@ function disegnaNota(n) {
     const sc = etichettaScadenza(n.scadenza);
     if (sc) meta.append(nodo('span', `scadenza ${sc.classe}`.trim(), sc.testo));
   }
+  if (n.cl) meta.append(bottoneCliente(n));
   if (n.da) meta.append(nodo('span', 'nota__da', n.da));
   if (n.priorita > 0 && n.stato !== 'chiuso') meta.append(nodo('span', 'nota__priorita', n.priorita > 1 ? '!!' : '!'));
   if (n.stato === 'attesa' && !inAttesa) meta.append(nodo('span', 'nota__ferma', `ferma da ${giorniDa(n.agg)} g`));
@@ -386,6 +399,45 @@ function disegnaNota(n) {
   }
 
   return carta;
+}
+
+/** Il codice cliente sulla card. È un bottone e non un'etichetta perché la domanda che
+ *  uno si fa guardandolo è sempre la stessa: «cos'altro ha aperto questo cliente?». */
+function bottoneCliente(n) {
+  const b = bottone('nota__cliente', n.cl);
+  b.title = `Cliente ${n.cl}, filiale ${filiale(n.cl)} — mostra tutte le sue note`;
+  // Come su Rimanda: sul telefono la card ascolta lo scorrimento, e senza questo il tap
+  // parte come swipe da zero pixel e il click si perde.
+  b.addEventListener('pointerdown', (e) => e.stopPropagation());
+  b.addEventListener('click', (e) => {
+    e.stopPropagation(); // non aprire il dettaglio
+    cercaCliente(n.cl);
+  });
+  return b;
+}
+
+/** Tutte le note di un cliente, in tutti gli stati, chiuse vecchie comprese: di un
+ *  cliente si vuole la storia, non la settimana.
+ *
+ *  Non passa dalla ricerca testuale, che pescherebbe anche le note che quel numero lo
+ *  nominano e basta — ed è esattamente la confusione che il riconoscimento stretto del
+ *  codice serve a evitare. Filtra sul campo `cl`, e il codice resta in vista nella riga
+ *  di ricerca, perché un filtro che non si vede è un filtro che non si toglie. */
+function cercaCliente(cl) {
+  cliente = cl;
+  fascia = null; // un contatore attivo nasconderebbe metà delle sue note
+  filtro = '';
+  campoRicerca.value = '';
+  apriRicerca();
+  disegna();
+}
+
+function disegnaCliente() {
+  const b = $('#cliente-attivo');
+  b.hidden = !cliente;
+  if (!cliente) return;
+  b.textContent = `cliente ${cliente} · filiale ${filiale(cliente)} ✕`;
+  b.title = 'Togli il filtro per cliente';
 }
 
 function bottoneRimanda(n) {
@@ -508,11 +560,14 @@ async function aggiungi(riga) {
   // `aggiungi()` dello store scrive solo i campi che conosceva quando è stato scritto:
   // `src`, `rc` e la piattaforma arrivano subito dopo, con una patch. Due eventi invece
   // di uno, entrambi locali e istantanei.
-  await Store.modifica(nota.id, { src: 'app', rc: nuovoRicontrollo(nota), pf: letta.pf });
+  await Store.modifica(nota.id, { src: 'app', rc: nuovoRicontrollo(nota), pf: letta.pf, cl: letta.cl });
   disegna();
 }
 
-async function sposta(id, verso) {
+/** `conAnnulla` a false per gli spostamenti fatti dal selettore nel dettaglio: la barretta
+ *  starebbe sotto al pannello e non si potrebbe toccare, e soprattutto lì non serve —
+ *  il selettore mostra i cinque stati e tornare indietro è toccare quello di prima. */
+async function sposta(id, verso, conAnnulla = true) {
   const nota = tutte().find((n) => n.id === id);
   if (!nota || nota.stato === verso) return;
   const prima = { stato: nota.stato, rc: nota.rc ?? null, aspetto: nota.aspetto ?? null };
@@ -520,10 +575,13 @@ async function sposta(id, verso) {
   disegna();
 
   const nome = STATI.find((s) => s.chiave === verso).nome;
-  const annulla = () => offriAnnulla(`Spostata in ${nome}`, async () => {
-    await Store.modifica(id, prima); // l'evento contrario, non un dialogo "sei sicuro?"
-    disegna();
-  });
+  const annulla = () => {
+    if (!conAnnulla) return;
+    offriAnnulla(`Spostata in ${nome}`, async () => {
+      await Store.modifica(id, prima); // l'evento contrario, non un dialogo "sei sicuro?"
+      disegna();
+    });
+  };
 
   // Annulla aspetta che la domanda sia finita: il pannello la coprirebbe, e i cinque
   // secondi se ne andrebbero mentre uno scrive.
@@ -624,8 +682,15 @@ function offriAnnulla(descrizione, contrario) {
 function apri(id) {
   apertaId = id;
   disegnaDettaglio();
-  const primo = $('#dettaglio .categoria-scelta, #dettaglio input');
-  if (primo) primo.focus();
+  // Il fuoco va sulla categoria solo se c'è davvero qualcosa da scegliere: su una nota
+  // già classificata portava il foglio a scorrere oltre il selettore di stato, che è la
+  // cosa per cui il dettaglio si apre quasi sempre. Altrimenti lo prende il foglio, così
+  // Esc continua a chiudere anche senza toccare niente.
+  const n = tutte().find((x) => x.id === id);
+  const foglio = $('#dettaglio-foglio');
+  foglio.tabIndex = -1;
+  const primo = n && !n.cat ? $('#dettaglio .categoria-scelta') : null;
+  (primo || foglio).focus();
 }
 
 function chiudiDettaglio() {
@@ -650,7 +715,9 @@ function disegnaDettaglio() {
   testa.append(chiudi);
   foglio.append(testa);
 
+  foglio.append(sezioneStato(n));
   foglio.append(sezioneCategoria(n));
+  foglio.append(sezioneCliente(n));
   foglio.append(campoTesto('Richiedente', n.da || '', 'chi ha chiesto', (v) => correggi(n.id, { da: v || null })));
   foglio.append(campoData('Scadenza', n.scadenza, 'quando è dovuta', (v) => correggi(n.id, { scadenza: v })));
   foglio.append(campoData('Ricontrollo', n.rc || null, 'quando la rivedo', (v) => correggi(n.id, { rc: v })));
@@ -668,6 +735,74 @@ function disegnaDettaglio() {
   foglio.append(sezElimina);
 
   $('#dettaglio').hidden = false;
+}
+
+/** Il selettore di stato: cinque voci in fila, un tocco.
+ *
+ *  Sul telefono è l'unico modo che esiste di cambiare stato. Lo scorrimento sa fare solo
+ *  «chiuso» e «in corso», non sa portare in Attesa e soprattutto non sa tornare indietro:
+ *  una nota chiusa per sbaglio, passati i cinque secondi della barretta, restava chiusa.
+ *  Non un quarto gesto: tre sono già il limite di quello che una mano distingue tenendo
+ *  il telefono, e il quarto si sbaglierebbe al posto di uno degli altri tre.
+ *
+ *  Sta sopra la categoria perché è il motivo per cui il dettaglio si apre durante la
+ *  giornata; la categoria si corregge una volta sola, quando la nota è nata storta. */
+function sezioneStato(n) {
+  const sez = nodo('section', 'dettaglio__sezione');
+  sez.append(nodo('div', 'dettaglio__etichetta', 'Stato'));
+  const riga = nodo('div', 'stati');
+  for (const s of STATI) {
+    const b = bottone(`stato-scelta${s.chiave === 'attesa' ? ' stato-scelta--attesa' : ''}`, s.nome);
+    b.setAttribute('aria-pressed', String(n.stato === s.chiave));
+    if (n.stato === s.chiave) b.classList.add('is-attivo');
+    // La domanda dell'Attesa scatta anche da qui: è legata al passaggio di stato, non
+    // al gesto che lo produce.
+    b.addEventListener('click', () => sposta(n.id, s.chiave, false));
+    riga.append(b);
+  }
+  sez.append(riga);
+  return sez;
+}
+
+/** Il codice cliente: sette cifre, le prime tre sono la filiale. */
+function sezioneCliente(n) {
+  const sez = nodo('section', 'dettaglio__sezione');
+  const testa = nodo('div', 'dettaglio__etichetta');
+  testa.append(nodo('span', null, 'Cliente'));
+  // La filiale non si salva da nessuna parte: si ricava dal codice. Un dato derivabile
+  // che viene scritto nel log è un dato che un giorno smentirà quello da cui deriva.
+  testa.append(nodo('span', 'dettaglio__attuale', n.cl ? `filiale ${filiale(n.cl)}` : 'sette cifre'));
+  sez.append(testa);
+
+  const riga = nodo('div', 'dettaglio__riga');
+  const i = document.createElement('input');
+  i.type = 'text';
+  i.inputMode = 'numeric';
+  i.className = 'dettaglio__campo';
+  i.value = n.cl || '';
+  i.placeholder = 'es. 2245744';
+  i.maxLength = 7;
+  i.autocomplete = 'off';
+  i.addEventListener('change', () => {
+    const v = i.value.replace(/\D/g, '');
+    // Mezzo codice non è un codice: ne uscirebbe una filiale inventata. Si rimette com'era.
+    if (v && v.length !== 7) {
+      i.value = n.cl || '';
+      return;
+    }
+    correggi(n.id, { cl: v || null });
+  });
+  riga.append(i);
+  if (n.cl) {
+    const altre = bottone('dettaglio__via', 'Tutte le sue note');
+    altre.addEventListener('click', () => {
+      chiudiDettaglio();
+      cercaCliente(n.cl);
+    });
+    riga.append(altre);
+  }
+  sez.append(riga);
+  return sez;
 }
 
 function sezioneCategoria(n) {
@@ -999,6 +1134,7 @@ function mostraAnteprima(testo) {
     if (letta.cat) pezzi.push({ testo: `${letta.cat} · ${nomeCategoria(letta.cat)}`, classe: 'etichetta--categoria' });
     else pezzi.push({ testo: letta.incerto ? 'incerta, da classificare' : 'da classificare', classe: '' });
     if (letta.pf) pezzi.push({ testo: letta.pf, classe: 'etichetta--piattaforma' });
+    if (letta.cl) pezzi.push({ testo: `cliente ${letta.cl}`, classe: 'etichetta--cliente' });
     if (letta.da) pezzi.push({ testo: `@${letta.da}`, classe: '' });
     for (const t of letta.tag) pezzi.push({ testo: `#${t}`, classe: '' });
     if (letta.scadenza) pezzi.push({ testo: etichettaScadenza(letta.scadenza).testo, classe: 'etichetta--scadenza' });
@@ -1163,8 +1299,15 @@ campoRicerca.addEventListener('keydown', (e) => {
 function chiudiRicerca() {
   campoRicerca.value = '';
   filtro = '';
+  cliente = null; // chiudere la riga toglie tutti i filtri che quella riga mostrava
   disegna();
 }
+
+$('#cliente-attivo').addEventListener('click', () => {
+  cliente = null;
+  disegna();
+  campoRicerca.focus();
+});
 
 const campoAttesa = $('#attesa-campo');
 

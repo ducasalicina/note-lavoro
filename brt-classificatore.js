@@ -338,6 +338,41 @@ export function urgente(testo) {
   return URGENZA.some(re => re.test(t));
 }
 
+/* ---------- codice cliente ---------- */
+
+/* Sette cifre, le prime tre sono la filiale.
+
+   NON si riconoscono sette cifre nude, mai. In un'azienda di spedizioni i numeri lunghi
+   sono dappertutto — tracking, spedizioni, bolle, ticket, riferimenti del cliente — e un
+   riconoscimento a vista trasformerebbe metà inbox in clienti che non esistono. Ci vuole
+   una parola che lo dica ("cliente", "codice") vicino al numero, oppure il prefisso
+   esplicito `cl:`.
+
+   La filiale non si salva: si ricava con `filiale(cl)`. Un dato derivabile che viene
+   scritto nel log è un dato che un giorno smentirà quello da cui deriva. */
+
+const CL_ESPLICITO = /(^|\s)cl:\s*(\d{7})(?!\d)/i;
+/* Fino a dodici caratteri non numerici fra la parola e il numero: ci stanno
+   "codice cliente:", "cliente n. ", "codice del ", e non ci sta mezza frase. */
+const CL_PAROLA = /\b(?:client[ei]|codice)\b[^0-9]{0,12}(\d{7})(?!\d)/i;
+
+/** Le prime tre cifre del codice cliente, o `null` se il codice non è un codice. */
+export function filiale(cl) {
+  return /^\d{7}$/.test(cl || '') ? String(cl).slice(0, 3) : null;
+}
+
+function estraiCliente(testo) {
+  const esplicito = testo.match(CL_ESPLICITO);
+  if (esplicito) {
+    /* Il marcatore sparisce dal testo come `@rossi`: è una dichiarazione, non una frase.
+       Quando invece il numero è dentro una frase ("il cliente 2245744 non trova...")
+       resta dov'è, perché lì significa qualcosa anche per chi rilegge. */
+    return { testo: testo.replace(CL_ESPLICITO, '$1').replace(/\s+/g, ' ').trim(), cl: esplicito[2] };
+  }
+  const detto = testo.match(CL_PAROLA);
+  return { testo, cl: detto ? detto[1] : null };
+}
+
 /* ---------- parsing della riga di cattura ---------- */
 
 const GIORNI = { dom: 0, lun: 1, mar: 2, mer: 3, gio: 4, ven: 5, sab: 6 };
@@ -406,7 +441,7 @@ function estraiScadenza(testo, oggi = new Date()) {
 
 /**
  * parse('!! @rossi #api validazione ko su conferma spedizione dom')
- *  -> { testo, cat, catAuto, da, tag[], priorita, scadenza, pf }
+ *  -> { testo, cat, catAuto, da, tag[], priorita, scadenza, pf, cl }
  */
 export function parse(input, oggi = new Date()) {
   let t = (input || '').trim();
@@ -426,7 +461,8 @@ export function parse(input, oggi = new Date()) {
     return sp;
   });
 
-  const sc = estraiScadenza(t.replace(/\s+/g, ' ').trim(), oggi);
+  const cli = estraiCliente(t.replace(/\s+/g, ' ').trim());
+  const sc = estraiScadenza(cli.testo, oggi);
   const testo = sc.testo;
 
   const auto = classifica(testo);
@@ -443,7 +479,8 @@ export function parse(input, oggi = new Date()) {
     tag,
     priorita,
     scadenza: sc.scadenza,
-    pf:       auto.pf
+    pf:       auto.pf,
+    cl:       cli.cl
   };
 }
 

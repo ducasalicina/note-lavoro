@@ -53,6 +53,8 @@
     <svg class="ricerca__icona" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
       <circle cx="6.8" cy="6.8" r="4.6"></circle><line x1="10.3" y1="10.3" x2="14" y2="14"></line>
     </svg>
+    <!-- Filtro per cliente: è un campo, non un testo, quindi non passa dalla ricerca. -->
+    <button id="cliente-attivo" class="ricerca__cliente" type="button" hidden></button>
     <input id="ricerca" class="ricerca__input" type="search" autocomplete="off"
            placeholder="Cerca fra tutti gli stati, compreso il chiuso…">
     <span class="ricerca__esc">esc per chiudere</span>
