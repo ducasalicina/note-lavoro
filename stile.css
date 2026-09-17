@@ -1014,6 +1014,93 @@ input, button { font-family: inherit; }
 
 .attesa__aiuto { font: 400 11.5px var(--font); color: var(--tenue-2); }
 
+/* ─── Dettaglio a passi (solo telefono) ──────────────────────────────────── */
+/* Sul desktop il foglio unico resta com'è. Qui le scelte si fanno con pulsanti alti
+   quanto un polpastrello, una sezione per schermata, e i campi da scrivere stanno
+   dietro «Altro»: erano loro a costringere a scorrere e a ingrandire. */
+
+.passo { display: flex; flex-direction: column; gap: 14px; }
+.passo__corpo { display: flex; flex-direction: column; gap: 10px; }
+
+.grandi { display: flex; flex-direction: column; gap: 6px; }
+
+.grande {
+  width: 100%;
+  min-height: 54px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2px;
+  padding: 10px 14px;
+  border: 1px solid var(--bordo);
+  border-radius: var(--r-medio);
+  background: var(--carta-quieta);
+  text-align: left;
+  cursor: pointer;
+}
+.grande__testo { font: 600 15px var(--font); color: var(--testo); }
+.grande__sotto {
+  max-width: 100%;
+  font: 400 11.5px var(--font);
+  color: var(--tenue-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.grande.is-attivo { background: var(--testo); border-color: var(--testo); }
+.grande.is-attivo .grande__testo { color: var(--carta-quieta); }
+.grande.is-attivo .grande__sotto { color: #a89f94; }
+
+/* Stessa barretta delle card: sceglierla insegna anche i colori. */
+.grande[data-area], .grandi[data-area] .grande { border-left-width: 4px; }
+.grande[data-area="ACCESSI"],   .grandi[data-area="ACCESSI"] .grande   { border-left-color: var(--area-accessi); }
+.grande[data-area="PORTALI"],   .grandi[data-area="PORTALI"] .grande   { border-left-color: var(--area-portali); }
+.grande[data-area="INTEGRAZ"],  .grandi[data-area="INTEGRAZ"] .grande  { border-left-color: var(--area-integraz); }
+.grande[data-area="OPERATIVO"], .grandi[data-area="OPERATIVO"] .grande { border-left-color: var(--area-operativo); }
+.grande[data-area="SISTEMI"],   .grandi[data-area="SISTEMI"] .grande   { border-left-color: var(--area-sistemi); }
+
+.passo__indietro {
+  align-self: flex-start;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: var(--r-piccolo);
+  background: var(--quieto-3);
+  font: 500 12.5px var(--font);
+  color: var(--testo-2);
+  cursor: pointer;
+}
+
+/* La barra delle sezioni resta sotto il pollice mentre il corpo scorre. */
+.passi {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  display: flex;
+  gap: 4px;
+  margin: 0 -14px;
+  padding: 8px 14px calc(8px + env(safe-area-inset-bottom));
+  background: var(--carta);
+  border-top: 1px solid var(--bordo-carta);
+}
+.passo-tab {
+  flex: 1;
+  min-width: 0;
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 6px 4px;
+  border: 0;
+  border-radius: var(--r-piccolo);
+  background: var(--quieto-3);
+  font: 500 12.5px var(--font);
+  color: var(--tenue-2);
+  cursor: pointer;
+}
+.passo-tab.is-attivo { background: var(--testo); color: var(--carta-quieta); }
+
 .guasto {
   margin: 0;
   padding: 16px 18px;
@@ -1132,6 +1219,16 @@ input, button { font-family: inherit; }
     max-height: 92vh;
     border-radius: var(--r-fascia) var(--r-fascia) 0 0;
     padding: 16px 14px calc(22px + env(safe-area-inset-bottom));
+  }
+  /* Quello a passi tiene la barra in fondo attaccata al bordo. */
+  .dettaglio__foglio--passi { gap: 12px; padding-bottom: 0; }
+  /* Il testo della nota non si porta via la schermata: tre righe e il resto nel title. */
+  .dettaglio__foglio--passi .dettaglio__testo {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    font-size: 14px;
   }
   .categoria-scelta__nome { max-width: 150px; }
 

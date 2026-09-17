@@ -681,6 +681,8 @@ function offriAnnulla(descrizione, contrario) {
 
 function apri(id) {
   apertaId = id;
+  passo = 'stato'; // sul telefono si riparte sempre dallo stato, che è il motivo dell'apertura
+  areaAperta = null;
   disegnaDettaglio();
   // Il fuoco va sulla categoria solo se c'è davvero qualcosa da scegliere: su una nota
   // già classificata portava il foglio a scorrere oltre il selettore di stato, che è la
@@ -689,7 +691,7 @@ function apri(id) {
   const n = tutte().find((x) => x.id === id);
   const foglio = $('#dettaglio-foglio');
   foglio.tabIndex = -1;
-  const primo = n && !n.cat ? $('#dettaglio .categoria-scelta') : null;
+  const primo = desktop() && n && !n.cat ? $('#dettaglio .categoria-scelta') : null;
   (primo || foglio).focus();
 }
 
@@ -706,35 +708,157 @@ function disegnaDettaglio() {
 
   const foglio = $('#dettaglio-foglio');
   foglio.replaceChildren();
+  foglio.classList.toggle('dettaglio__foglio--passi', !desktop());
 
   const testa = nodo('header', 'dettaglio__testa');
-  testa.append(nodo('p', 'dettaglio__testo', n.testo));
+  const testo = nodo('p', 'dettaglio__testo', n.testo);
+  testo.title = n.testo; // sul telefono il titolo è tagliato a tre righe
+  testa.append(testo);
   const chiudi = bottone('dettaglio__chiudi', '✕');
   chiudi.setAttribute('aria-label', 'Chiudi');
   chiudi.addEventListener('click', chiudiDettaglio);
   testa.append(chiudi);
   foglio.append(testa);
 
-  foglio.append(sezioneStato(n));
-  foglio.append(sezioneCategoria(n));
-  foglio.append(sezioneCliente(n));
-  foglio.append(campoTesto('Richiedente', n.da || '', 'chi ha chiesto', (v) => correggi(n.id, { da: v || null })));
-  foglio.append(campoData('Scadenza', n.scadenza, 'quando è dovuta', (v) => correggi(n.id, { scadenza: v })));
-  foglio.append(campoData('Ricontrollo', n.rc || null, 'quando la rivedo', (v) => correggi(n.id, { rc: v })));
-  foglio.append(campoTesto('Numero ticket', n.ticket || '', 'vuoto = fuori dal sistema ufficiale', (v) => correggi(n.id, { ticket: v || null })));
-  // La risposta alla domanda si corregge qui, o non si correggerebbe più: la domanda
-  // arriva una volta sola, allo spostamento.
-  if (n.stato === 'attesa') foglio.append(campoTesto('Cosa aspetti', n.aspetto || '', 'chi o cosa tiene ferma la nota', (v) => correggi(n.id, { aspetto: v || null })));
-  if (n.stato === 'chiuso') foglio.append(sezioneEsito(n));
-
-  const sezElimina = nodo('section', 'dettaglio__sezione');
-  const elimina = bottone('dettaglio__via pericolo', 'Elimina la nota');
-  elimina.addEventListener('click', () => eliminaNota(n.id));
-  sezElimina.append(elimina);
-  sezElimina.append(nodo('div', 'dettaglio__nota', 'Si annulla dalla barretta, come tutto il resto.'));
-  foglio.append(sezElimina);
+  if (desktop()) foglio.append(...sezioniDesktop(n));
+  else foglio.append(passoCorrente(n), barraPassi());
 
   $('#dettaglio').hidden = false;
+}
+
+/** Sul desktop il foglio unico va bene: c'è spazio, c'è il mouse, e si vede tutto
+ *  insieme senza scorrere. Qui non si tocca niente (§1). */
+function sezioniDesktop(n) {
+  return [sezioneStato(n), sezioneCategoria(n), ...campiComuni(n), sezioneElimina(n)];
+}
+
+/** I campi che si scrivono: sul desktop stanno in fila, sul telefono dietro «Altro». */
+function campiComuni(n) {
+  const campi = [
+    sezioneCliente(n),
+    campoTesto('Richiedente', n.da || '', 'chi ha chiesto', (v) => correggi(n.id, { da: v || null })),
+    campoData('Scadenza', n.scadenza, 'quando è dovuta', (v) => correggi(n.id, { scadenza: v })),
+    campoData('Ricontrollo', n.rc || null, 'quando la rivedo', (v) => correggi(n.id, { rc: v })),
+    campoTesto('Numero ticket', n.ticket || '', 'vuoto = fuori dal sistema ufficiale', (v) => correggi(n.id, { ticket: v || null })),
+  ];
+  // La risposta alla domanda si corregge qui, o non si correggerebbe più: la domanda
+  // arriva una volta sola, allo spostamento.
+  if (n.stato === 'attesa') {
+    campi.push(campoTesto('Cosa aspetti', n.aspetto || '', 'chi o cosa tiene ferma la nota', (v) => correggi(n.id, { aspetto: v || null })));
+  }
+  if (n.stato === 'chiuso') campi.push(sezioneEsito(n));
+  return campi;
+}
+
+function sezioneElimina(n) {
+  const sez = nodo('section', 'dettaglio__sezione');
+  const elimina = bottone('dettaglio__via pericolo', 'Elimina la nota');
+  elimina.addEventListener('click', () => eliminaNota(n.id));
+  sez.append(elimina);
+  sez.append(nodo('div', 'dettaglio__nota', 'Si annulla dalla barretta, come tutto il resto.'));
+  return sez;
+}
+
+// ─── Il dettaglio sul telefono: una sezione per schermata ────────────────────
+// Il foglio unico, sul telefono, era un modulo lungo: si scorreva, si riduceva
+// l'ingrandimento e si mirava un campo alto trentotto pixel. Qui si sceglie con file di
+// pulsanti grandi, una sezione alla volta, e i campi da scrivere stanno dietro «Altro»,
+// perché quelli si cercano quando servono. La cattura non cambia di una virgola: resta
+// una riga e invio, che è il 100% di quello che il telefono fa davvero (§1).
+
+const PASSI = [
+  { chiave: 'stato', nome: 'Stato' },
+  { chiave: 'categoria', nome: 'Categoria' },
+  { chiave: 'altro', nome: 'Altro' },
+];
+
+let passo = 'stato';
+let areaAperta = null; // la categoria si sceglie in due passaggi: prima l'area, poi il codice
+
+function passoCorrente(n) {
+  const corpo = nodo('div', 'passo');
+  if (passo === 'stato') corpo.append(passoStato(n));
+  else if (passo === 'categoria') corpo.append(passoCategoria(n));
+  else corpo.append(...campiComuni(n), sezioneElimina(n));
+  return corpo;
+}
+
+function barraPassi() {
+  const barra = nodo('nav', 'passi');
+  barra.setAttribute('aria-label', 'Sezioni');
+  for (const p of PASSI) {
+    const b = bottone('passo-tab', p.nome);
+    b.setAttribute('aria-selected', String(passo === p.chiave));
+    if (passo === p.chiave) b.classList.add('is-attivo');
+    b.addEventListener('click', () => {
+      passo = p.chiave;
+      areaAperta = null;
+      disegnaDettaglio();
+    });
+    barra.append(b);
+  }
+  return barra;
+}
+
+/** Un pulsante grande: il modo di scegliere quando si ha un dito e non un mouse. */
+function sceltaGrande(testo, sotto, attivo, azione) {
+  const b = bottone(`grande${attivo ? ' is-attivo' : ''}`);
+  b.setAttribute('aria-pressed', String(!!attivo));
+  b.append(nodo('span', 'grande__testo', testo));
+  if (sotto) b.append(nodo('span', 'grande__sotto', sotto));
+  b.addEventListener('click', azione);
+  return b;
+}
+
+function passoStato(n) {
+  const fila = nodo('div', 'grandi');
+  for (const s of STATI) {
+    fila.append(sceltaGrande(s.nome, null, n.stato === s.chiave, () => sposta(n.id, s.chiave, false)));
+  }
+  return fila;
+}
+
+/** Due passaggi, non quattordici pulsanti: cinque aree stanno in una schermata e si
+ *  leggono, quattordici codici no. La barretta colorata è la stessa delle card, quindi
+ *  sceglierli insegna anche i colori. */
+function passoCategoria(n) {
+  const box = nodo('div', 'passo__corpo');
+
+  if (!areaAperta) {
+    const fila = nodo('div', 'grandi');
+    for (const [chiave, area] of Object.entries(AREE)) {
+      const b = sceltaGrande(area.nome, area.cat.join(' · '), areaDi(n.cat) === chiave, () => {
+        areaAperta = chiave;
+        disegnaDettaglio();
+      });
+      b.dataset.area = chiave;
+      fila.append(b);
+    }
+    box.append(fila);
+    if (n.cat) {
+      const via = bottone('dettaglio__via', 'Togli la categoria');
+      via.addEventListener('click', () => correggi(n.id, { cat: null }));
+      box.append(via);
+    }
+    return box;
+  }
+
+  const indietro = bottone('passo__indietro', '‹ Tutte le aree');
+  indietro.addEventListener('click', () => {
+    areaAperta = null;
+    disegnaDettaglio();
+  });
+  box.append(indietro);
+  const fila = nodo('div', 'grandi');
+  fila.dataset.area = areaAperta;
+  for (const cod of AREE[areaAperta].cat) {
+    fila.append(sceltaGrande(cod, nomeCategoria(cod), n.cat === cod, () => {
+      areaAperta = null; // scelto il codice si torna alle aree: il passaggio è finito
+      correggi(n.id, { cat: cod });
+    }));
+  }
+  box.append(fila);
+  return box;
 }
 
 /** Il selettore di stato: cinque voci in fila, un tocco.
