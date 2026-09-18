@@ -55,6 +55,8 @@
     </svg>
     <!-- Filtro per cliente: è un campo, non un testo, quindi non passa dalla ricerca. -->
     <button id="cliente-attivo" class="ricerca__cliente" type="button" hidden></button>
+    <!-- Il gesto da fare quando il commerciale contesta i tempi: testo, non allegati. -->
+    <button id="riepilogo-apri" class="ricerca__riepilogo" type="button" hidden>Riepilogo da incollare</button>
     <input id="ricerca" class="ricerca__input" type="search" autocomplete="off"
            placeholder="Cerca fra tutti gli stati, compreso il chiuso…">
     <span class="ricerca__esc">esc per chiudere</span>
@@ -93,6 +95,23 @@
            placeholder="la risposta di IT ERP, il preventivo del fornitore…">
     <span class="attesa__aiuto">Invio per salvare, Esc per saltare</span>
   </form>
+</div>
+
+<!-- Riepilogo del cliente: testo semplice, pronto da incollare in una mail. Nessun file
+     generato, nessun allegato — quello che serve è poterlo appiccicare in una risposta. -->
+<div id="riepilogo" class="dettaglio" role="dialog" aria-modal="true" aria-label="Riepilogo del cliente" hidden>
+  <div id="riepilogo-fondo" class="dettaglio__fondo"></div>
+  <div class="dettaglio__foglio riepilogo__foglio">
+    <header class="dettaglio__testa">
+      <p id="riepilogo-titolo" class="dettaglio__testo"></p>
+      <button id="riepilogo-chiudi" class="dettaglio__chiudi" type="button" aria-label="Chiudi">✕</button>
+    </header>
+    <textarea id="riepilogo-testo" class="riepilogo__testo" readonly spellcheck="false"></textarea>
+    <div class="dettaglio__riga">
+      <button id="riepilogo-copia" class="dettaglio__via" type="button">Copia</button>
+      <span class="dettaglio__nota">Date e percorso vengono dal log: non si scrivono a mano e non si correggono.</span>
+    </div>
+  </div>
 </div>
 
 <!-- Nessun dialogo di conferma: ogni azione lascia 5 secondi per annullare. -->

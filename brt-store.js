@@ -110,18 +110,27 @@ async function registra(e) {
   return e;
 }
 
+/* `at` è un parametro facoltativo e serve a UNA cosa sola: far nascere le note di esempio
+   con una storia plausibile invece che tutte nello stesso istante, così la cronologia si
+   vede. `registra()` lo onorava già.
+
+   ATTENZIONE: nell'uso vero non va passato mai. Le date sono il prodotto di questo
+   strumento (§1 del CLAUDE.md), e una data scritta a mano è una data che non prova niente.
+   Nessuna chiamata dell'interfaccia lo usa; l'unico chiamante è `dati-esempio.js`, che
+   sparisce prima del primo uso reale. */
+
 /** Cattura: niente attese, niente rete. */
-export async function aggiungi(riga) {
+export async function aggiungi(riga, at) {
   const p = parse(riga);
-  const e = { ev: 'new', id: nuovoId(), t: p.testo, cat: p.cat, da: p.da,
+  const e = { ev: 'new', id: nuovoId(), at, t: p.testo, cat: p.cat, da: p.da,
               tag: p.tag, pr: p.priorita, sc: p.scadenza };
   await registra(e);
   return stato.get(e.id);
 }
 
 /** patch es. { stato:'corso' } oppure { cat:'API', ticket:'INC12345' } */
-export async function modifica(id, patch) {
-  await registra({ ev: 'upd', id, p: patch });
+export async function modifica(id, patch, at) {
+  await registra({ ev: 'upd', id, p: patch, at });
   return stato.get(id);
 }
 
@@ -148,7 +157,7 @@ export async function ripristina(item) {
     tag: item.tag, pr: item.priorita, sc: item.scadenza
   });
   const resto = {};
-  for (const k of ['stato', 'rc', 'ticket', 'esito', 'src', 'fs', 'pf', 'ca', 'img', 'creato']) {
+  for (const k of ['stato', 'rc', 'ticket', 'esito', 'src', 'fs', 'pf', 'ca', 'cl', 'aspetto', 'img', 'creato']) {
     if (item[k] != null) resto[k] = item[k];
   }
   if (Object.keys(resto).length) await registra({ ev: 'upd', id: item.id, p: resto });
@@ -199,6 +208,12 @@ export function elenco({ stato: st, area, cat, testo, da } = {}) {
      NaN e l'ordinamento per priorità non è mai avvenuto, silenziosamente. */
   return v.sort((a, b) => b.priorita - a.priorita || b.creato - a.creato);
 }
+
+/** Tutti gli eventi, in ordine di rigioco. Sola lettura: serve a ricostruire il percorso
+    di una nota — quando è arrivata, quando è stata presa in carico, quanto è rimasta
+    ferma, quando è stata chiusa — che è il dato per cui questo strumento esiste (§1).
+    `elenco()` restituisce lo stato finale, e lo stato finale non sa dire quando. */
+export const eventi = () => prom(tx('eventi').getAll()).then(v => ordina(v.map(({ k, ...e }) => e)));
 
 let AREA_DI = {};
 export function mappaAree(CATEGORIE) {

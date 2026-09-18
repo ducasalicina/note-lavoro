@@ -58,14 +58,46 @@
   const fin = app.contentWindow;
   await pausa(700); // l'app apre IndexedDB prima di disegnare
 
-  /** Disegnato davvero, non "senza l'attributo hidden". */
-  const disegnato = (id) => doc.getElementById(id).getClientRects().length > 0;
+  /** Disegnato davvero, non "senza l'attributo hidden".
+      Un elemento che non c'è non è "disegnato", e soprattutto non deve far esplodere la
+      suite: era il difetto che queste prove devono scoprire, ed è capitato anche a loro. */
+  const disegnato = (id) => {
+    const el = doc.getElementById(id);
+    if (!el) {
+      mancanti.push(id);
+      return false;
+    }
+    return el.getClientRects().length > 0;
+  };
+  const mancanti = [];
+
+  /* LA PROVA CHE MANCAVA, due volte.
+     `app.js` cerca elementi per id; se `index.html` è più vecchio, `$()` torna `null`,
+     l'eccezione ferma il modulo e il board non si disegna affatto. Qui si legge il
+     sorgente di app.js, si estrae ogni id cercato, e si verifica che l'index.html
+     caricato davvero nel riquadro ce l'abbia. Se i due file vanno fuori passo, questa
+     prova diventa rossa prima che lo faccia il sito. */
+  const sorgente = await (await fetch('app.js')).text();
+  /* Tre forme: `$('#id')`, `ascolta('#id', …)` e `getElementById('id')`. La seconda è
+     proprio quella del difetto — gli ascoltatori — e dimenticarla qui vorrebbe dire
+     scrivere una prova che non guarda dove si rompe. */
+  const cercati = [...new Set([...sorgente.matchAll(
+    /(?:\$|ascolta)\(\s*'#([\w-]+)'|getElementById\('([\w-]+)'\)/g)]
+    .map((m) => m[1] || m[2]))].sort();
+  prova(`app.js cerca ${cercati.length} elementi per id`, cercati.length > 20);
+  const assenti = cercati.filter((id) => !doc.getElementById(id));
+  prova('index.html li contiene tutti' + (assenti.length ? ` — mancano: ${assenti.join(', ')}` : ''),
+    assenti.length === 0);
 
   const NASCOSTI = [
     ['dettaglio', 'il dettaglio'],
     ['config', 'le impostazioni'],
     ['riga-ricerca', 'la barra di ricerca'],
     ['annulla', 'la barretta Annulla'],
+    ['attesa', 'la domanda dell\'Attesa'],
+    ['cliente-attivo', 'il filtro per cliente'],
+    ['riepilogo', 'il riepilogo del cliente'],
+    ['riepilogo-apri', 'il bottone del riepilogo'],
     ['suggerimenti', 'il suggerimento inline'],
     ['anteprima', 'le etichette indovinate'],
   ];
@@ -90,6 +122,123 @@
   doc.getElementById('cerca').click();
   await pausa(150);
   prova('la ricerca si richiude', !disegnato('riga-ricerca'));
+
+  /* Una card finta, montata e smontata dentro la pagina vera: serve a misurare il disegno
+     senza scrivere niente nell'archivio. È larga 222px come una colonna del desktop,
+     perché è lì che la riga della categoria era stretta e il chip usciva dalla card. */
+  const banco = doc.createElement('div');
+  banco.style.cssText = 'position:absolute;left:-9999px;top:0;width:222px';
+  const card = doc.createElement('article');
+  card.className = 'nota';
+  card.dataset.area = 'INTEGRAZ';
+  const riga = doc.createElement('span');
+  riga.className = 'nota__categoria';
+  for (const [cl, txt] of [['nota__codice', 'API'],
+                           ['nota__nome-categoria', 'Integrazioni REST API e web service'],
+                           ['nota__piattaforma', 'EasySpedWeb']]) {
+    const s = doc.createElement('span');
+    s.className = cl;
+    s.textContent = txt;
+    riga.append(s);
+  }
+  card.append(riga);
+  banco.append(card);
+  doc.body.append(banco);
+  await pausa(60);
+
+  const st = fin.getComputedStyle(card);
+  const limite = card.getBoundingClientRect().right
+    - parseFloat(st.paddingRight) - parseFloat(st.borderRightWidth);
+  prova('il chip della piattaforma resta dentro la card',
+    riga.getBoundingClientRect().right <= limite + 0.5);
+  prova('la barretta dell\'area è colorata',
+    st.borderLeftWidth === '3px' && st.borderLeftColor !== st.borderTopColor);
+  prova('il colore dell\'area non è il terracotta del ritardo',
+    st.borderLeftColor !== 'rgb(176, 74, 38)');
+  /* Stessa idea per il selettore di stato: cinque voci in fila dentro un foglio da 362px,
+     che è quello che resta di uno schermo da 390 tolti i margini. Se una si tronca, sul
+     telefono non si legge più quale stato si sta scegliendo. */
+  banco.replaceChildren();
+  banco.style.width = '362px';
+  const fila = doc.createElement('div');
+  fila.className = 'stati';
+  for (const nome of ['Inbox', 'Da fare', 'In corso', 'Attesa', 'Chiuso']) {
+    const b = doc.createElement('button');
+    b.className = 'stato-scelta';
+    b.textContent = nome;
+    fila.append(b);
+  }
+  banco.append(fila);
+  await pausa(60);
+
+  const voci = [...fila.children];
+  prova('i cinque stati stanno su una riga sola',
+    new Set(voci.map((v) => Math.round(v.getBoundingClientRect().top))).size === 1);
+  prova('nessuno stato si tronca a larghezza telefono',
+    voci.every((v) => v.scrollWidth <= v.clientWidth + 1));
+  prova('i cinque stati stanno nella larghezza',
+    voci[4].getBoundingClientRect().right <= fila.getBoundingClientRect().right + 0.5);
+
+  /* I pulsanti del dettaglio a passi devono restare grandi: sotto i 48px si sbaglia
+     bersaglio con il pollice, ed è il difetto che quel pannello esiste per togliere. */
+  banco.replaceChildren();
+  const pila = doc.createElement('div');
+  pila.className = 'grandi';
+  for (const [testo, sotto] of [['Inbox', null], ['Integrazioni e dati', 'API · ECO · TRX · SFT']]) {
+    const b = doc.createElement('button');
+    b.className = 'grande';
+    const t = doc.createElement('span');
+    t.className = 'grande__testo';
+    t.textContent = testo;
+    b.append(t);
+    if (sotto) {
+      const s = doc.createElement('span');
+      s.className = 'grande__sotto';
+      s.textContent = sotto;
+      b.append(s);
+    }
+    pila.append(b);
+  }
+  banco.append(pila);
+  await pausa(60);
+
+  const pulsanti = [...pila.children];
+  prova('i pulsanti del telefono sono alti almeno 48px',
+    pulsanti.every((b) => b.getBoundingClientRect().height >= 48));
+  prova('e larghi quanto la schermata',
+    pulsanti.every((b) => b.getBoundingClientRect().width >= 360));
+  prova('la riga di sotto non trabocca',
+    pulsanti.every((b) => b.scrollWidth <= b.clientWidth + 1));
+  banco.replaceChildren();
+  banco.style.width = '470px';
+  const percorso = doc.createElement('ol');
+  percorso.className = 'percorso';
+  for (const [quando, cosa, durata] of [['15/09 09:40', 'creata', null],
+                                        ['15/09 14:20', 'in attesa: conferma del cliente', '6 giorni'],
+                                        ['22/09 11:05', 'chiusa, risolto', null]]) {
+    const li = doc.createElement('li');
+    li.className = 'percorso__passo';
+    for (const [cl, txt] of [['percorso__quando', quando], ['percorso__cosa', cosa],
+                             ...(durata ? [['percorso__durata', durata]] : [])]) {
+      const s = doc.createElement('span');
+      s.className = cl;
+      s.textContent = txt;
+      li.append(s);
+    }
+    percorso.append(li);
+  }
+  banco.append(percorso);
+  await pausa(60);
+
+  const righeP = [...percorso.children];
+  prova('i passi del percorso stanno su una riga ciascuno',
+    new Set(righeP.map((r) => Math.round(r.getBoundingClientRect().top))).size === 3);
+  prova('le date del percorso sono a larghezza fissa',
+    new Set(righeP.map((r) => r.querySelector('.percorso__quando').getBoundingClientRect().width.toFixed(1))).size === 1,
+    righeP.map((r) => r.querySelector('.percorso__quando').getBoundingClientRect().width.toFixed(1)).join(','));
+  prova('nessun passo esce dal suo riquadro',
+    righeP.every((r) => r.scrollWidth <= r.clientWidth + 1));
+  banco.remove();
 
   mostra(esiti);
 

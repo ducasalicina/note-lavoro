@@ -327,12 +327,25 @@ function visibili(chiave) {
 
 // ─── Rendering ───────────────────────────────────────────────────────────────
 
+/** Una sezione che si rompe non porta giù le altre.
+ *
+ *  Il board è la cosa che deve arrivare a schermo comunque: se manca il contenitore dei
+ *  contatori, si perdono i contatori, non la giornata di lavoro. L'errore va in console
+ *  forte, perché resta un difetto da correggere, non una condizione normale. */
+function perSezione(nome, disegnaLa) {
+  try {
+    disegnaLa();
+  } catch (err) {
+    console.error(`[note] non sono riuscito a disegnare: ${nome}`, err);
+  }
+}
+
 function disegna() {
-  disegnaCliente();
-  disegnaScadenze();
-  disegnaBarra();
-  disegnaColonne();
-  disegnaDettaglio();
+  perSezione('filtro cliente', disegnaCliente);
+  perSezione('fascia scadenze', disegnaScadenze);
+  perSezione('barra degli stati', disegnaBarra);
+  perSezione('colonne', disegnaColonne);
+  perSezione('dettaglio', disegnaDettaglio);
 }
 
 function disegnaScadenze() {
@@ -362,11 +375,12 @@ function disegnaScadenze() {
   // accanto ai titoli delle colonne contano quanto lavoro c'è. Senza l'etichetta si
   // somigliano troppo. Sta fuori dal contenitore che scorre, così non se ne va via.
   const nome = nodo('span', 'fascia__nome', 'Da guardare oggi');
-  $('#fascia-scadenze').replaceChildren(nome, riga);
+  $('#fascia-scadenze')?.replaceChildren(nome, riga);
 }
 
 function disegnaBarra() {
   const barra = $('#barra-stati');
+  if (!barra) return;
   barra.replaceChildren();
 
   for (const s of STATI) {
@@ -424,7 +438,7 @@ function disegnaColonne() {
     griglia.append(colonna);
   }
 
-  $('#contenuto').replaceChildren(griglia);
+  $('#contenuto')?.replaceChildren(griglia);
 }
 
 function disegnaNota(n) {
@@ -546,8 +560,10 @@ function cercaCliente(cl) {
 
 function disegnaCliente() {
   const b = $('#cliente-attivo');
+  const apri = $('#riepilogo-apri');
+  if (apri) apri.hidden = !cliente;
+  if (!b) return;
   b.hidden = !cliente;
-  $('#riepilogo-apri').hidden = !cliente;
   if (!cliente) return;
   b.textContent = `cliente ${cliente} · filiale ${filiale(cliente)} ✕`;
   b.title = 'Togli il filtro per cliente';
@@ -599,9 +615,10 @@ function dataCompleta(d) {
 }
 
 function apriRiepilogo() {
-  if (!cliente) return;
   const area = $('#riepilogo-testo');
-  $('#riepilogo-titolo').textContent = `Riepilogo cliente ${cliente}`;
+  if (!cliente || !area || !$('#riepilogo')) return;
+  const titolo = $('#riepilogo-titolo');
+  if (titolo) titolo.textContent = `Riepilogo cliente ${cliente}`;
   area.value = testoRiepilogo(cliente);
   $('#riepilogo').hidden = false;
   area.focus();
@@ -609,8 +626,10 @@ function apriRiepilogo() {
 }
 
 function chiudiRiepilogo() {
-  $('#riepilogo').hidden = true;
-  $('#riepilogo-testo').value = '';
+  const p = $('#riepilogo');
+  if (p) p.hidden = true;
+  const area = $('#riepilogo-testo');
+  if (area) area.value = '';
 }
 
 /** I giorni di fermo, contati dal passaggio di stato e non da `agg`.
@@ -790,6 +809,8 @@ let attesaId = null;
 let attesaPoi = null;
 
 function chiediAttesa(id, poi) {
+  // Senza il pannello la domanda si salta e si va avanti: lo spostamento è già avvenuto.
+  if (!$('#attesa') || !campoAttesa) return poi?.();
   const n = tutte().find((x) => x.id === id);
   attesaId = id;
   attesaPoi = poi;
@@ -804,7 +825,7 @@ function chiediAttesa(id, poi) {
  *  risposta sbagliata. Se il valore non cambia non parte nessun evento: il log è per
  *  sempre, e non merita una riga per una domanda saltata. */
 async function chiudiAttesa(salva) {
-  if ($('#attesa').hidden) return;
+  if ($('#attesa')?.hidden ?? true) return;
   const id = attesaId;
   const poi = attesaPoi;
   const risposta = campoAttesa.value.trim() || null;
@@ -860,10 +881,12 @@ async function eliminaNota(id) {
 
 function offriAnnulla(descrizione, contrario) {
   const barra = $('#annulla');
-  clearTimeout(scadutoAnnulla);
-  $('#annulla-testo').textContent = descrizione;
-  barra.hidden = false;
+  const testo = $('#annulla-testo');
   const vecchio = $('#annulla-bottone');
+  if (!barra || !testo || !vecchio) return; // l'azione è già avvenuta: si perde solo l'annullo
+  clearTimeout(scadutoAnnulla);
+  testo.textContent = descrizione;
+  barra.hidden = false;
   const nuovo = vecchio.cloneNode(true); // sgancia l'annullamento precedente
   vecchio.replaceWith(nuovo);
   nuovo.addEventListener('click', () => {
@@ -891,15 +914,16 @@ function apri(id) {
   // Esc continua a chiudere anche senza toccare niente.
   const n = tutte().find((x) => x.id === id);
   const foglio = $('#dettaglio-foglio');
-  foglio.tabIndex = -1;
+  if (foglio) foglio.tabIndex = -1;
   const primo = desktop() && n && !n.cat ? $('#dettaglio .categoria-scelta') : null;
-  (primo || foglio).focus();
+  (primo || foglio)?.focus();
 }
 
 function chiudiDettaglio() {
   apertaId = null;
-  $('#dettaglio').hidden = true;
-  $('#dettaglio-foglio').replaceChildren();
+  const p = $('#dettaglio');
+  if (p) p.hidden = true;
+  $('#dettaglio-foglio')?.replaceChildren();
 }
 
 function disegnaDettaglio() {
@@ -908,6 +932,7 @@ function disegnaDettaglio() {
   if (!n) return chiudiDettaglio();
 
   const foglio = $('#dettaglio-foglio');
+  if (!foglio) return;
   foglio.replaceChildren();
   foglio.classList.toggle('dettaglio__foglio--passi', !desktop());
 
@@ -927,7 +952,8 @@ function disegnaDettaglio() {
   if (desktop()) foglio.append(sezioneCronologia(n), ...sezioniDesktop(n));
   else foglio.append(passoCorrente(n), barraPassi());
 
-  $('#dettaglio').hidden = false;
+  const p = $('#dettaglio');
+  if (p) p.hidden = false;
 }
 
 /** Sul desktop il foglio unico va bene: c'è spazio, c'è il mouse, e si vede tutto
@@ -1290,19 +1316,22 @@ function campoData(etichetta, valore, aiuto, salva) {
 
 function apriConfig() {
   disegnaConfig();
-  $('#config').hidden = false;
+  const p = $('#config');
+  if (p) p.hidden = false;
   const primo = $('#config input');
   if (primo) primo.focus();
 }
 
 function chiudiConfig() {
-  $('#config').hidden = true;
-  $('#config-foglio').replaceChildren();
+  const p = $('#config');
+  if (p) p.hidden = true;
+  $('#config-foglio')?.replaceChildren();
 }
 
 function disegnaConfig() {
   const c = cfg();
   const foglio = $('#config-foglio');
+  if (!foglio) return;
   foglio.replaceChildren();
 
   const testa = nodo('header', 'dettaglio__testa');
@@ -1337,7 +1366,8 @@ function disegnaConfig() {
   foglio.append(sezioneSync());
   foglio.append(sezioneProve(c));
 
-  $('#config').hidden = false;
+  const p = $('#config');
+  if (p) p.hidden = false;
 }
 
 function sezioneSync() {
@@ -1478,9 +1508,11 @@ async function riconfigura(parziale) {
  *  `title` e nell'etichetta accessibile, per chi il colore non lo vede. */
 async function aggiornaStato() {
   const el = $('#stato-sync');
+  if (!el) return; // senza indicatore l'app funziona: si sincronizza lo stesso, in silenzio
   const scrivi = (classe, breve, esteso) => {
     el.className = `stato-sync ${classe}`.trim();
-    $('#stato-sync-testo').textContent = breve;
+    const testo = $('#stato-sync-testo');
+    if (testo) testo.textContent = breve;
     el.title = esteso;
     el.setAttribute('aria-label', esteso);
   };
@@ -1509,6 +1541,7 @@ async function aggiornaStato() {
 
 function mostraAnteprima(testo) {
   const box = $('#anteprima');
+  if (!box) return;
   const letta = testo.trim() ? parse(testo) : null;
   const pezzi = [];
   if (letta) {
@@ -1571,6 +1604,7 @@ function aggiornaSuggerimenti() {
 
 function disegnaSuggerimenti() {
   const box = $('#suggerimenti');
+  if (!box || !campo) return;
   box.replaceChildren(...sugg.voci.map((v, i) => {
     const voce = nodo('div', 'suggerimento');
     voce.id = `sugg-${i}`;
@@ -1595,10 +1629,12 @@ function disegnaSuggerimenti() {
 function chiudiSuggerimenti() {
   sugg = { aperto: false, sigla: null, voci: [], indice: -1, inizio: 0, fine: 0 };
   const box = $('#suggerimenti');
-  box.replaceChildren();
-  box.hidden = true;
-  campo.setAttribute('aria-expanded', 'false');
-  campo.removeAttribute('aria-activedescendant');
+  if (box) {
+    box.replaceChildren();
+    box.hidden = true;
+  }
+  campo?.setAttribute('aria-expanded', 'false');
+  campo?.removeAttribute('aria-activedescendant');
 }
 
 function muoviSuggerimento(passo) {
@@ -1620,17 +1656,48 @@ function completa(i) {
 }
 
 // ─── Avvio ───────────────────────────────────────────────────────────────────
+// Il cablaggio degli ascoltatori sta tutto dentro `collega()`, e `collega()` non può far
+// morire l'avvio.
+//
+// È già successo due volte: `index.html` pubblicato più vecchio di `app.js`, un `$()` che
+// torna `null`, l'eccezione ferma il modulo a metà riga — e il board non viene disegnato
+// per niente, perché `avvia()` sta sotto. Il risultato è una pagina con la sola testata,
+// che sembra un guasto dei dati mentre manca un bottone.
+//
+// Regola: un pezzo d'interfaccia che manca costa quel pezzo, mai la pagina. Si scrive in
+// console — forte, perché è un difetto e va corretto — e si tira dritto.
+
+/** Aggancia un ascoltatore, se l'elemento c'è. Ritorna l'elemento o `null`. */
+function ascolta(selettore, evento, azione, opzioni) {
+  const el = $(selettore);
+  if (!el) {
+    console.error(
+      `[note] manca in index.html: ${selettore}. L'interfaccia continua senza quel pezzo — `
+      + 'quasi sempre vuol dire che index.html è più vecchio di app.js.');
+    return null;
+  }
+  el.addEventListener(evento, azione, opzioni);
+  return el;
+}
 
 const campo = $('#cattura');
 
-campo.addEventListener('input', () => {
-  mostraAnteprima(campo.value);
-  aggiornaSuggerimenti();
-});
+function collega() {
+  collegaCattura();
+  collegaRicerca();
+  collegaPannelli();
+}
 
-campo.addEventListener('blur', chiudiSuggerimenti);
+function collegaCattura() {
+  ascolta('#cattura', 'input', () => {
+    mostraAnteprima(campo.value);
+    aggiornaSuggerimenti();
+  });
+  ascolta('#cattura', 'blur', chiudiSuggerimenti);
+  ascolta('#cattura', 'keydown', tastoCattura);
+}
 
-campo.addEventListener('keydown', async (e) => {
+async function tastoCattura(e) {
   if (sugg.aperto) {
     if (e.key === 'ArrowDown') return e.preventDefault(), muoviSuggerimento(1);
     if (e.key === 'ArrowUp') return e.preventDefault(), muoviSuggerimento(-1);
@@ -1645,78 +1712,88 @@ campo.addEventListener('keydown', async (e) => {
   chiudiSuggerimenti();
   mostraAnteprima('');
   await aggiungi(riga);
-});
+}
 
 const bottoneCerca = $('#cerca');
 const rigaRicerca = $('#riga-ricerca');
 const campoRicerca = $('#ricerca');
 
+// Da qui in giù si usa l'accesso opzionale: se un pezzo non c'è, l'azione che lo tocca
+// non fa niente invece di far esplodere quella che viene dopo.
 function apriRicerca() {
-  rigaRicerca.hidden = false;
-  bottoneCerca.setAttribute('aria-expanded', 'true');
-  campoRicerca.focus();
+  if (rigaRicerca) rigaRicerca.hidden = false;
+  bottoneCerca?.setAttribute('aria-expanded', 'true');
+  campoRicerca?.focus();
 }
 
-bottoneCerca.addEventListener('click', () => {
-  if (rigaRicerca.hidden) return apriRicerca();
-  rigaRicerca.hidden = true;
-  bottoneCerca.setAttribute('aria-expanded', 'false');
+function chiudiRigaRicerca() {
+  if (rigaRicerca) rigaRicerca.hidden = true;
+  bottoneCerca?.setAttribute('aria-expanded', 'false');
   chiudiRicerca();
-});
-
-campoRicerca.addEventListener('input', () => {
-  filtro = campoRicerca.value;
-  disegna();
-});
-
-campoRicerca.addEventListener('keydown', (e) => {
-  if (e.key !== 'Escape') return;
-  rigaRicerca.hidden = true;
-  bottoneCerca.setAttribute('aria-expanded', 'false');
-  chiudiRicerca();
-  campo.focus();
-});
+}
 
 function chiudiRicerca() {
-  campoRicerca.value = '';
+  if (campoRicerca) campoRicerca.value = '';
   filtro = '';
   cliente = null; // chiudere la riga toglie tutti i filtri che quella riga mostrava
   disegna();
 }
 
-$('#cliente-attivo').addEventListener('click', () => {
-  cliente = null;
-  disegna();
-  campoRicerca.focus();
-});
+function collegaRicerca() {
+  ascolta('#cerca', 'click', () => {
+    if (rigaRicerca?.hidden) return apriRicerca();
+    chiudiRigaRicerca();
+  });
 
-$('#riepilogo-apri').addEventListener('click', apriRiepilogo);
-$('#riepilogo-chiudi').addEventListener('click', chiudiRiepilogo);
-$('#riepilogo-fondo').addEventListener('click', chiudiRiepilogo);
-$('#riepilogo-copia').addEventListener('click', (e) =>
-  negliAppunti($('#riepilogo-testo').value, e.currentTarget, $('#riepilogo-testo')));
+  ascolta('#ricerca', 'input', () => {
+    filtro = campoRicerca.value;
+    disegna();
+  });
+
+  ascolta('#ricerca', 'keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    chiudiRigaRicerca();
+    campo?.focus();
+  });
+
+  ascolta('#cliente-attivo', 'click', () => {
+    cliente = null;
+    disegna();
+    campoRicerca?.focus();
+  });
+
+  ascolta('#riepilogo-apri', 'click', apriRiepilogo);
+  ascolta('#riepilogo-chiudi', 'click', chiudiRiepilogo);
+  ascolta('#riepilogo-fondo', 'click', chiudiRiepilogo);
+  ascolta('#riepilogo-copia', 'click', (e) =>
+    negliAppunti($('#riepilogo-testo')?.value || '', e.currentTarget, $('#riepilogo-testo')));
+}
 
 const campoAttesa = $('#attesa-campo');
 
-// È un form apposta: così Invio lo chiude senza che serva intercettare un tasto.
-$('#attesa-foglio').addEventListener('submit', (e) => {
-  e.preventDefault();
-  chiudiAttesa(true);
-});
-$('#attesa-fondo').addEventListener('click', () => chiudiAttesa(false));
+function collegaPannelli() {
+  // È un form apposta: così Invio lo chiude senza che serva intercettare un tasto.
+  ascolta('#attesa-foglio', 'submit', (e) => {
+    e.preventDefault();
+    chiudiAttesa(true);
+  });
+  ascolta('#attesa-fondo', 'click', () => chiudiAttesa(false));
 
-$('#dettaglio-fondo').addEventListener('click', chiudiDettaglio);
-$('#config-fondo').addEventListener('click', chiudiConfig);
-$('#impostazioni').addEventListener('click', apriConfig);
-$('#stato-sync').addEventListener('click', apriConfig);
+  ascolta('#dettaglio-fondo', 'click', chiudiDettaglio);
+  ascolta('#config-fondo', 'click', chiudiConfig);
+  ascolta('#impostazioni', 'click', apriConfig);
+  ascolta('#stato-sync', 'click', apriConfig);
 
-document.addEventListener('keydown', (e) => {
-  if (e.key !== 'Escape') return;
-  if (!$('#attesa').hidden) chiudiAttesa(false);
-  else if (!$('#riepilogo').hidden) chiudiRiepilogo();
-  else if (apertaId != null) chiudiDettaglio();
-  else if (!$('#config').hidden) chiudiConfig();
-});
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    // `?? true` perché un pannello che non esiste conta come già chiuso: senza,
+    // Esc smetterebbe di chiudere tutti gli altri.
+    if (!($('#attesa')?.hidden ?? true)) chiudiAttesa(false);
+    else if (!($('#riepilogo')?.hidden ?? true)) chiudiRiepilogo();
+    else if (apertaId != null) chiudiDettaglio();
+    else if (!($('#config')?.hidden ?? true)) chiudiConfig();
+  });
+}
 
 // La rete che torna, o l'app che riprende il fuoco, cambiano lo stato senza preavviso.
 addEventListener('online', aggiornaStato);
@@ -1728,11 +1805,19 @@ document.addEventListener('visibilitychange', () => {
 // Il passaggio desktop/telefono cambia le affordance: trascinamento contro scorrimento.
 window.matchMedia('(min-width: 900px)').addEventListener('change', disegna);
 
+// Due chiamate separate, e in quest'ordine: anche se `collega()` inciampasse su qualcosa
+// di imprevisto, `avvia()` parte lo stesso e il board si disegna.
+try {
+  collega();
+} catch (err) {
+  console.error('[note] cablaggio degli ascoltatori interrotto:', err);
+}
 avvia();
 
 async function avvia() {
   const c = cfg();
-  $('#dispositivo').textContent = c.dev;
+  const dev = $('#dispositivo');
+  if (dev) dev.textContent = c.dev;
   try {
     Store.mappaAree(CATEGORIE); // senza questa, il filtro per area non trova mai niente
     await Store.init({ owner: c.owner || null, repo: c.repo || null, dev: c.dev });
@@ -1743,12 +1828,12 @@ async function avvia() {
   } catch (err) {
     // La rete fallisce in silenzio, tutto il resto è visibile: senza IndexedDB non
     // esiste applicazione, e mostrarlo è meglio che una schermata vuota inspiegabile.
-    $('#contenuto').replaceChildren(
+    $('#contenuto')?.replaceChildren(
       nodo('p', 'guasto', `Archivio locale non disponibile: ${err.message}. In navigazione privata il browser lo blocca.`),
     );
     return;
   }
   disegna();
   await aggiornaStato();
-  campo.focus();
+  campo?.focus();
 }
