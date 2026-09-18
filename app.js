@@ -164,6 +164,115 @@ function testoData(data) {
 
 const nomeCategoria = (cod) => categoria(cod)?.nome || '';
 
+// ─── Il percorso di una nota ─────────────────────────────────────────────────
+// Il motivo per cui questo strumento esiste (§1): l'ufficio commerciale contesta i tempi,
+// e serve poter dire con le date quando una richiesta è arrivata, quando è stata presa in
+// carico, quanto è rimasta ferma e quando è stata chiusa.
+//
+// Lo stato finale che `elenco()` ricostruisce non sa dire QUANDO: quello lo sanno solo gli
+// eventi, che hanno tutti il loro `at`. Qui il log viene riletto e ridotto a un percorso
+// per nota. Non è un campo da compilare: non costa un tocco a nessuno.
+//
+// L'indice si rifà da capo a ogni scrittura. Con qualche migliaio di eventi è questione di
+// millisecondi, e vale la semplicità: nessuno stato incrementale da tenere allineato.
+
+const NOME_PASSO = {
+  inbox: 'rimessa in inbox',
+  dafare: 'messa in coda',
+  corso: 'presa in carico',
+  attesa: 'in attesa',
+  chiuso: 'chiusa',
+};
+
+let percorsi = new Map(); // id -> [{ at, stato?, testo, aspetto?, esito? }]
+
+async function aggiornaPercorsi() {
+  try {
+    percorsi = costruisciPercorsi(await Store.eventi());
+  } catch {
+    percorsi = new Map(); // senza percorsi il resto dell'interfaccia funziona lo stesso
+  }
+}
+
+function costruisciPercorsi(eventi) {
+  const m = new Map();
+  for (const e of eventi) {
+    if (e.ev === 'del') {
+      m.delete(e.id);
+      continue;
+    }
+    if (e.ev === 'new') {
+      m.set(e.id, [{ at: e.at, testo: 'creata' }]);
+      continue;
+    }
+    const passi = m.get(e.id);
+    if (!passi) continue; // un `upd` prima del suo `new`: lo ignora, come fa `rigioca()`
+    const p = e.p || {};
+    // Il ripristino di una nota eliminata riscrive `creato` con una patch, perché il
+    // `new` porterebbe l'ora del ripristino: il percorso deve seguirlo, o direbbe che
+    // la richiesta è arrivata il giorno in cui l'ho recuperata.
+    if (p.creato) passi[0].at = p.creato;
+    if (p.stato) passi.push({ at: e.at, stato: p.stato, testo: NOME_PASSO[p.stato] || p.stato });
+    if (p.aspetto) {
+      // La risposta al «cosa aspetti» arriva con un evento suo, subito dopo lo
+      // spostamento: si attacca a quel passo invece di diventarne uno in più.
+      const ultimo = passi[passi.length - 1];
+      if (ultimo && ultimo.stato === 'attesa') ultimo.aspetto = p.aspetto;
+      else passi.push({ at: e.at, stato: 'attesa', testo: NOME_PASSO.attesa, aspetto: p.aspetto });
+    }
+    if (p.esito) {
+      const chiusura = [...passi].reverse().find((x) => x.stato === 'chiuso');
+      if (chiusura) chiusura.esito = p.esito;
+    }
+  }
+  return m;
+}
+
+const passiDi = (id) => percorsi.get(id) || [];
+
+/** Da quando la nota è nello stato in cui sta adesso. `agg` non va bene: si sposta a ogni
+ *  correzione, quindi bastava sistemare un ticket per azzerare una settimana di attesa. */
+function fermaDa(n) {
+  const ultimo = [...passiDi(n.id)].reverse().find((p) => p.stato);
+  return giorniDa(ultimo ? ultimo.at : n.agg);
+}
+
+function dataOra(ms) {
+  const d = new Date(ms);
+  const p = (x) => String(x).padStart(2, '0');
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+function giorniTesto(g) {
+  if (g <= 0) return 'meno di un giorno';
+  return g === 1 ? '1 giorno' : `${g} giorni`;
+}
+
+/** Quanto è durato un passo. Si mostra solo sull'attesa: è l'unico pezzo di percorso su
+ *  cui nasce una contestazione, e metterlo su tutti farebbe rumore. */
+function durataPasso(passi, i) {
+  if (passi[i].stato !== 'attesa') return null;
+  const dopo = passi[i + 1];
+  const g = Math.round(((dopo ? dopo.at : Date.now()) - passi[i].at) / 86400000);
+  return dopo ? giorniTesto(g) : `${giorniTesto(g)}, ancora ferma`;
+}
+
+function testoPasso(p) {
+  let t = p.testo;
+  if (p.aspetto) t += `: ${p.aspetto}`;
+  if (p.esito) t += `, ${p.esito}`;
+  return t;
+}
+
+/** Il percorso su una riga sola, per il riepilogo da incollare in una mail. */
+function percorsoInRiga(id) {
+  const passi = passiDi(id);
+  return passi.map((p, i) => {
+    const durata = durataPasso(passi, i);
+    return `${dataOra(p.at)} ${testoPasso(p)}${durata ? ` (${durata})` : ''}`;
+  }).join(' · ');
+}
+
 // Il colore sta sull'area, non sulla categoria: quattordici tinte non si distinguono a
 // colpo d'occhio, cinque sì. Serve a riconoscere di cosa parla una card senza leggerla.
 const areaDi = (cod) => categoria(cod)?.area || null;
@@ -344,11 +453,15 @@ function disegnaNota(n) {
   // In Attesa al posto del testo va quello che si sta aspettando, con accanto i giorni:
   // con nove note ferme il testo originale non dice a cosa sono appese, e per ricollegarle
   // bisognava riaprirle una per una. L'originale non si perde, sta nel dettaglio.
-  const inAttesa = n.stato === 'attesa' && n.aspetto;
+  const inAttesa = n.stato === 'attesa';
   if (inAttesa) {
     const blocco = nodo('div', 'nota__attesa');
-    blocco.append(nodo('span', 'nota__aspetto', n.aspetto));
-    blocco.append(nodo('span', 'nota__giorni', `${giorniDa(n.agg)} g`));
+    // Anche senza risposta la riga c'è, e dice che manca: una nota ferma da sei giorni
+    // senza sapere di chi è il caso peggiore, non quello da nascondere.
+    blocco.append(n.aspetto
+      ? nodo('span', 'nota__aspetto', n.aspetto)
+      : nodo('span', 'nota__aspetto nota__aspetto--vuoto', 'non è scritto chi si aspetta'));
+    blocco.append(chipFermo(n));
     carta.append(blocco);
     // Sotto, in piccolo e su una riga sola, il testo originale: serve a riconoscere la
     // nota a colpo d'occhio, non a rileggerla. Per intero sta nel `title` — l'app si usa
@@ -372,7 +485,6 @@ function disegnaNota(n) {
   if (n.cl) meta.append(bottoneCliente(n));
   if (n.da) meta.append(nodo('span', 'nota__da', n.da));
   if (n.priorita > 0 && n.stato !== 'chiuso') meta.append(nodo('span', 'nota__priorita', n.priorita > 1 ? '!!' : '!'));
-  if (n.stato === 'attesa' && !inAttesa) meta.append(nodo('span', 'nota__ferma', `ferma da ${giorniDa(n.agg)} g`));
   // Rimanda si stacca a destra: è un'azione, e in mezzo agli altri sembrava un'etichetta.
   if (scaduto(n)) meta.append(bottoneRimanda(n));
   if (meta.childElementCount) carta.append(meta);
@@ -435,9 +547,90 @@ function cercaCliente(cl) {
 function disegnaCliente() {
   const b = $('#cliente-attivo');
   b.hidden = !cliente;
+  $('#riepilogo-apri').hidden = !cliente;
   if (!cliente) return;
   b.textContent = `cliente ${cliente} · filiale ${filiale(cliente)} ✕`;
   b.title = 'Togli il filtro per cliente';
+}
+
+// ─── Riepilogo del cliente ───────────────────────────────────────────────────
+// Il gesto che si fa quando il commerciale contesta i tempi: si filtra per cliente, si
+// copia, si incolla nella risposta. Testo semplice e basta — un allegato o un file
+// generato aggiungerebbero un passaggio proprio dove serve non averne (§1).
+
+/** Tutte le note del cliente, dalla più vecchia: un riepilogo si legge in avanti. */
+function noteDelCliente(cl) {
+  return tutte().filter((n) => n.cl === cl).sort((a, b) => a.creato - b.creato);
+}
+
+function testoRiepilogo(cl) {
+  const note = noteDelCliente(cl);
+  const righe = [`Cliente ${cl} — filiale ${filiale(cl)}`];
+  if (note.length) {
+    const dal = new Date(Math.min(...note.map((n) => n.creato)));
+    righe.push(`${note.length} ${note.length === 1 ? 'richiesta' : 'richieste'}, dal ${dataCompleta(dal)} a oggi`);
+  } else {
+    righe.push('Nessuna richiesta registrata.');
+  }
+  righe.push('');
+
+  note.forEach((n, i) => {
+    righe.push(`${i + 1}. ${n.testo}`);
+    // Lo stato attuale in testa alla riga: è la prima cosa che chiede chi legge —
+    // «e adesso a che punto siamo?» — e il percorso da solo non la dice a voce alta.
+    const dettagli = [STATI.find((s) => s.chiave === n.stato)?.nome || n.stato];
+    dettagli.push(n.cat ? `${n.cat} · ${nomeCategoria(n.cat)}` : 'da classificare');
+    if (n.pf) dettagli.push(n.pf);
+    // Un ticket assente è un'informazione, non un vuoto: dice che è passata fuori dal
+    // sistema ufficiale, ed è la prima cosa che il commerciale chiede.
+    dettagli.push(n.ticket ? `ticket ${n.ticket}` : 'nessun ticket');
+    righe.push(`   ${dettagli.join(' · ')}`);
+    righe.push(`   ${percorsoInRiga(n.id) || 'percorso non disponibile'}`);
+    righe.push('');
+  });
+
+  righe.push(`Estratto il ${dataCompleta(new Date())} dalle note di lavoro CED.`);
+  return righe.join('\n');
+}
+
+function dataCompleta(d) {
+  const p = (x) => String(x).padStart(2, '0');
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}`;
+}
+
+function apriRiepilogo() {
+  if (!cliente) return;
+  const area = $('#riepilogo-testo');
+  $('#riepilogo-titolo').textContent = `Riepilogo cliente ${cliente}`;
+  area.value = testoRiepilogo(cliente);
+  $('#riepilogo').hidden = false;
+  area.focus();
+  area.setSelectionRange(0, area.value.length);
+}
+
+function chiudiRiepilogo() {
+  $('#riepilogo').hidden = true;
+  $('#riepilogo-testo').value = '';
+}
+
+/** I giorni di fermo, contati dal passaggio di stato e non da `agg`.
+ *
+ *  «Fermo da sei giorni in attesa del cliente» e «fermo da sei giorni per colpa nostra»
+ *  sono due cose diverse, ed è su quella differenza che nascono le contestazioni (§1):
+ *  il chi sta scritto accanto, nella riga della risposta o — quando la risposta manca —
+ *  al posto suo, che è anche il modo di accorgersi che non l'ho scritta.
+ *
+ *  Oltre la settimana il chip si fa scuro. Non terracotta: quello è del ritardo su una
+ *  scadenza, e un'attesa lunga non è per forza un ritardo mio. */
+function chipFermo(n, conParola = false) {
+  const g = fermaDa(n);
+  const e = nodo('span', 'nota__giorni', conParola ? `ferma da ${g} g` : `${g} g`);
+  if (g >= 7) e.classList.add('nota__giorni--lunga');
+  const passi = passiDi(n.id);
+  const entrata = [...passi].reverse().find((p) => p.stato);
+  e.title = `In attesa dal ${entrata ? dataOra(entrata.at) : '—'}, ${giorniTesto(g)}`
+    + (n.aspetto ? ` — si aspetta: ${n.aspetto}` : ' — di chi si aspetti non è scritto');
+  return e;
 }
 
 function bottoneRimanda(n) {
@@ -561,7 +754,7 @@ async function aggiungi(riga) {
   // `src`, `rc` e la piattaforma arrivano subito dopo, con una patch. Due eventi invece
   // di uno, entrambi locali e istantanei.
   await Store.modifica(nota.id, { src: 'app', rc: nuovoRicontrollo(nota), pf: letta.pf, cl: letta.cl });
-  disegna();
+  await ridisegna();
 }
 
 /** `conAnnulla` a false per gli spostamenti fatti dal selettore nel dettaglio: la barretta
@@ -572,14 +765,14 @@ async function sposta(id, verso, conAnnulla = true) {
   if (!nota || nota.stato === verso) return;
   const prima = { stato: nota.stato, rc: nota.rc ?? null, aspetto: nota.aspetto ?? null };
   await Store.modifica(id, { stato: verso, rc: nuovoRicontrollo({ ...nota, stato: verso }) });
-  disegna();
+  await ridisegna();
 
   const nome = STATI.find((s) => s.chiave === verso).nome;
   const annulla = () => {
     if (!conAnnulla) return;
     offriAnnulla(`Spostata in ${nome}`, async () => {
       await Store.modifica(id, prima); // l'evento contrario, non un dialogo "sei sicuro?"
-      disegna();
+      await ridisegna();
     });
   };
 
@@ -633,12 +826,20 @@ async function rimanda(id) {
   const quando = nuovoRicontrollo(nota);
   if (!quando) return;
   await Store.modifica(id, { rc: quando });
+  await ridisegna();
+}
+
+/** Ridisegna dopo una scrittura. Il percorso di una nota vive negli eventi, non
+ *  nell'item, quindi va ricostruito dal log prima di rimettere in scena qualsiasi cosa
+ *  lo mostri: le card in attesa, la cronologia nel dettaglio, il riepilogo. */
+async function ridisegna() {
+  await aggiornaPercorsi();
   disegna();
 }
 
 async function correggi(id, patch) {
   await Store.modifica(id, patch);
-  disegna();
+  await ridisegna();
 }
 
 /** Nessuna conferma: l'evento contrario è un `new` con lo stesso id, quindi la barretta
@@ -650,10 +851,10 @@ async function eliminaNota(id) {
   const copia = { ...nota };
   if (apertaId === id) chiudiDettaglio();
   await Store.elimina(id);
-  disegna();
+  await ridisegna();
   offriAnnulla('Nota eliminata', async () => {
     await Store.ripristina(copia);
-    disegna();
+    await ridisegna();
   });
 }
 
@@ -720,7 +921,10 @@ function disegnaDettaglio() {
   testa.append(chiudi);
   foglio.append(testa);
 
-  if (desktop()) foglio.append(...sezioniDesktop(n));
+  // Sul desktop la cronologia sta subito sotto il testo, perché è la storia di questa
+  // richiesta e si legge insieme a lei. Sul telefono sta in cima ad «Altro», che è dove
+  // si va a cercare: lì il dettaglio si apre per cambiare stato (§1, una nota su 17).
+  if (desktop()) foglio.append(sezioneCronologia(n), ...sezioniDesktop(n));
   else foglio.append(passoCorrente(n), barraPassi());
 
   $('#dettaglio').hidden = false;
@@ -748,6 +952,58 @@ function campiComuni(n) {
   }
   if (n.stato === 'chiuso') campi.push(sezioneEsito(n));
   return campi;
+}
+
+/** Il percorso della nota. **Sola lettura**: non c'è niente da compilare, viene tutto dai
+ *  timestamp che gli eventi hanno già. È la risposta alla contestazione dell'ufficio
+ *  commerciale, e per questo sta in alto e non in fondo. */
+function sezioneCronologia(n) {
+  const sez = nodo('section', 'dettaglio__sezione dettaglio__sezione--percorso');
+  const testa = nodo('div', 'dettaglio__etichetta');
+  testa.append(nodo('span', null, 'Percorso'));
+  const copia = bottone('dettaglio__copia', 'Copia');
+  copia.title = 'Copia il percorso su una riga, da incollare in una mail';
+  copia.addEventListener('click', () => negliAppunti(`${n.testo}\n${percorsoInRiga(n.id)}`, copia));
+  testa.append(copia);
+  sez.append(testa);
+
+  const passi = passiDi(n.id);
+  if (!passi.length) {
+    sez.append(nodo('div', 'dettaglio__nota', 'Il percorso non è ancora stato letto dal log.'));
+    return sez;
+  }
+
+  const elenco = nodo('ol', 'percorso');
+  passi.forEach((p, i) => {
+    const riga = nodo('li', 'percorso__passo');
+    if (p.stato) riga.dataset.stato = p.stato;
+    riga.append(nodo('span', 'percorso__quando', dataOra(p.at)));
+    riga.append(nodo('span', 'percorso__cosa', testoPasso(p)));
+    const durata = durataPasso(passi, i);
+    if (durata) riga.append(nodo('span', 'percorso__durata', durata));
+    elenco.append(riga);
+  });
+  sez.append(elenco);
+  return sez;
+}
+
+/** Negli appunti, e se il browser non lascia scrivere si ripiega sulla selezione: in
+ *  quel caso il Ctrl+C lo fa l'utente, ma il testo è comunque pronto. */
+async function negliAppunti(testo, bottone, area) {
+  const originale = bottone.textContent;
+  try {
+    await navigator.clipboard.writeText(testo);
+    bottone.textContent = 'Copiato';
+  } catch {
+    if (area) {
+      area.focus();
+      area.select();
+      bottone.textContent = 'Selezionato: Ctrl+C';
+    } else {
+      bottone.textContent = 'Non copiabile qui';
+    }
+  }
+  setTimeout(() => { bottone.textContent = originale; }, 2500);
 }
 
 function sezioneElimina(n) {
@@ -779,7 +1035,7 @@ function passoCorrente(n) {
   const corpo = nodo('div', 'passo');
   if (passo === 'stato') corpo.append(passoStato(n));
   else if (passo === 'categoria') corpo.append(passoCategoria(n));
-  else corpo.append(...campiComuni(n), sezioneElimina(n));
+  else corpo.append(sezioneCronologia(n), ...campiComuni(n), sezioneElimina(n));
   return corpo;
 }
 
@@ -1093,6 +1349,7 @@ function sezioneSync() {
     adesso.disabled = true;
     try {
       await Store.sincronizza();
+      await aggiornaPercorsi(); // la sync porta eventi di altri dispositivi
       rete.guasta = false;
     } catch {
       rete.guasta = true; // la rete fallisce in silenzio, ma l'indicatore deve dirlo
@@ -1433,6 +1690,12 @@ $('#cliente-attivo').addEventListener('click', () => {
   campoRicerca.focus();
 });
 
+$('#riepilogo-apri').addEventListener('click', apriRiepilogo);
+$('#riepilogo-chiudi').addEventListener('click', chiudiRiepilogo);
+$('#riepilogo-fondo').addEventListener('click', chiudiRiepilogo);
+$('#riepilogo-copia').addEventListener('click', (e) =>
+  negliAppunti($('#riepilogo-testo').value, e.currentTarget, $('#riepilogo-testo')));
+
 const campoAttesa = $('#attesa-campo');
 
 // È un form apposta: così Invio lo chiude senza che serva intercettare un tasto.
@@ -1450,6 +1713,7 @@ $('#stato-sync').addEventListener('click', apriConfig);
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
   if (!$('#attesa').hidden) chiudiAttesa(false);
+  else if (!$('#riepilogo').hidden) chiudiRiepilogo();
   else if (apertaId != null) chiudiDettaglio();
   else if (!$('#config').hidden) chiudiConfig();
 });
@@ -1475,6 +1739,7 @@ async function avvia() {
     // Le note finte servono a provare sincronizzazione e gesti, quindi restano dietro un
     // interruttore spento di suo: chi apre l'app per lavorare non le vede mai.
     if (c.esempi && tutte().length === 0) await seminaEsempi();
+    await aggiornaPercorsi();
   } catch (err) {
     // La rete fallisce in silenzio, tutto il resto è visibile: senza IndexedDB non
     // esiste applicazione, e mostrarlo è meglio che una schermata vuota inspiegabile.

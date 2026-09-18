@@ -15,6 +15,64 @@ Sostituisce un file Excel abbandonato perché compilarlo a fine giornata costava
 implementativa aggiunge anche solo due tap alla cattura, è la scelta sbagliata. Ogni volta
 che hai un dubbio, ottimizza per la velocità di inserimento, non per la completezza del dato.
 
+### A cosa serve davvero: difendere una cronologia
+
+Dopo una settimana di uso vero è emerso il caso d'uso che conta, e non era quello previsto.
+
+**Lo strumento non serve tanto a organizzare il lavoro quanto a difendere una cronologia.**
+L'ufficio commerciale contesta i tempi di intervento — *«questo cliente aspetta da una
+settimana, l'avete aiutato solo ieri»* — e quello che serve è poter ricostruire, con date
+precise:
+
+- quando la richiesta è **arrivata**;
+- quando è stata **presa in carico**;
+- quanto è rimasta **ferma**, e in attesa di chi: del cliente, del commerciale stesso, di
+  un terzo;
+- quando è stata **chiusa**, e come.
+
+**Il valore sta nelle date e nel percorso, non nel contenuto delle note.** Il testo serve a
+riconoscere di quale richiesta si parla; sono i timestamp a reggere la discussione. Il log
+in sola aggiunta di §5 non è quindi un dettaglio implementativo: è il prodotto.
+
+Conseguenza operativa, e vale su ogni scelta futura: **le funzioni di lettura e
+ricostruzione vengono prima di quelle di organizzazione.** Un board più ordinato non serve
+a niente se poi non si riesce a dire quando è successo cosa.
+
+### Dati d'uso della prima settimana
+
+Misurati, non stimati. Sono la ragione dell'ordine qui sopra.
+
+| dato | numero |
+|---|---|
+| note inserite in 5 giorni | 17 |
+| di cui dal telefono | **1** |
+| sforamenti del limite WIP | **0** |
+| note in attesa da rileggere per ricostruire il contesto | 9, ed è risultato troppo costoso |
+
+Cosa ne segue:
+
+- **Il telefono è un caso marginale.** Una nota su diciassette. Resta impeccabile sulla
+  cattura rapida e leggibile per il resto; non si progetta più niente per lui, e non gli si
+  sacrifica il desktop. L'`hover` con un `title` è un posto legittimo dove mettere il
+  dettaglio secondario, senza equivalente sul telefono.
+- **Il kanban è tarato male**, ma non è urgente: le note passano da Inbox direttamente ad
+  Attesa o Chiuso, e «In corso» è quasi inutilizzata. Per questo il limite WIP non ha mai
+  suonato — non perché il lavoro sia sotto controllo, ma perché quella colonna non si usa.
+  Va ritarato **dopo** le funzioni di ricostruzione, non prima.
+- **Rileggere le note in attesa per capire cosa si aspetta è il costo più alto** rimasto.
+  È il motivo per cui `aspetto` esiste (§6), e il motivo per cui va mostrato ovunque
+  serva invece di essere nascosto nel dettaglio.
+
+### L'ordine delle cose, finché non cambia di nuovo
+
+1. **La cronologia nel dettaglio** — il percorso di ogni nota, ricavato dagli eventi.
+2. **La vista cliente esportabile** — il riepilogo copiabile da incollare in una mail.
+3. **I giorni di fermo visibili in Attesa**, con chi si sta aspettando.
+4. Poi, e solo poi: dettaglio mobile, taratura del kanban, note di chiusura.
+
+**La cattura non si tocca**, in nessuno dei quattro. È l'unica cosa che già funziona come
+deve.
+
 ## 2. Vincoli non negoziabili
 
 - **Nessun framework, nessun build step, nessun bundler.** HTML, CSS e JavaScript vanilla,
@@ -28,6 +86,32 @@ che hai un dubbio, ottimizza per la velocità di inserimento, non per la complet
   analytics, librerie da unpkg.
 - **Le immagini non escono mai dal dispositivo.** Restano in IndexedDB, nel log viaggia
   solo il contatore. Questo è un requisito di riservatezza, non una semplificazione.
+- **La storia dei commit non si riscrive mai.** Niente `--amend`, `rebase` o force push su
+  un commit già fatto. Se una modifica va annullata si fa **un commit nuovo che la
+  annulla**, e la storia resta quella che è.
+
+### Perché la storia non si riscrive
+
+Su un repository collegato a GitHub, riscrivere un commit già spinto crea divergenze che
+poi vanno sistemate a mano, e le sistema sempre qualcun altro. Il fatto che in un dato
+momento il repo non abbia ancora un remote non è una deroga: è solo il caso in cui il
+danno non si vede.
+
+Vale anche quando il commit da disfare è di dieci minuti fa e riscriverlo sembrerebbe più
+pulito. Una storia con dentro un passo falso e la sua correzione è più utile di una storia
+ripulita: dice cosa è stato provato e perché è stato tolto.
+
+### Le foto passano da OneDrive aziendale: nell'app non ci sono
+
+**L'allegato immagine non si fa.** Le foto vanno su OneDrive aziendale, che è già dove
+stanno e dove gli altri le trovano; duplicarle qui vorrebbe dire una copia in più da
+tenere allineata e da spiegare.
+
+`brt-store.js` espone ancora `allegaImmagine()`, `immagini()` e il campo `img`: sono
+GIÀ SCRITTO e restano dove sono, semplicemente l'interfaccia non li chiama. Se un giorno
+l'allegato tornasse, la regola qui sopra vale ancora — e con essa la conseguenza da dire
+all'utente invece di lasciargliela scoprire: su un altro dispositivo il contatore si vede
+e la foto no.
 
 ## 3. Due repository, e c'è un motivo
 
@@ -124,6 +208,8 @@ undo al posto dei dialoghi di conferma. Mai un modale "sei sicuro?".
 | `ca` | canale di arrivo, **solo se dichiarato** |
 | `fs` | `0` ordinaria, `1` fuori standard |
 | `pf` | piattaforma dove succede (MyBRT, WooCommerce, Zebra…), separata dalla categoria |
+| `aspetto` | cosa tiene ferma la nota. Solo su `attesa`, e solo se ho risposto (vedi §6) |
+| `cl` | codice cliente: sette cifre, le prime tre sono la filiale (vedi §8) |
 
 ### `src` è un fatto, `ca` è una dichiarazione
 
@@ -154,6 +240,14 @@ lì senza essere dichiarati da nessuna parte, perché la patch è generica.
 `aggiungi()` scrive solo i campi che il classificatore produce: `src` e `rc` arrivano con
 una `modifica()` subito dopo. Due eventi per una cattura, entrambi locali e istantanei.
 
+### Le date non si scrivono a mano
+
+`aggiungi()` e `modifica()` accettano un `at` facoltativo, e **nell'uso vero non va passato
+mai**. Esiste per un solo chiamante, `dati-esempio.js`, che deve far nascere le note finte
+con una storia plausibile perché la cronologia si veda; e quel file sparisce prima del primo
+uso reale. Le date sono il prodotto di questo strumento (§1): una data scritta a mano è una
+data che non prova niente.
+
 ### L'esito si vede sulla card
 
 Una nota chiusa mostra il suo `esito` al posto della scadenza, che sul chiuso non vuole
@@ -170,6 +264,114 @@ che questo documento non aveva mai elencato, come è successo a `ticket`.
 `attesa` significa "fermo su terzi" (IT ERP, fornitore, cliente) e va tenuto separato
 visivamente: non è roba che dipende da lui, e mescolarla fa sembrare il board intasato.
 Mostra i giorni di attesa accanto alla voce.
+
+### L'unica domanda dell'applicazione
+
+Spostando una nota in `attesa`, e **solo lì**, l'app chiede una riga: *cosa aspetti?* Un
+campo di testo e nient'altro. La risposta finisce in `aspetto` e sulla card va **in cima**,
+con i giorni accanto; sotto resta il testo originale, in piccolo e su **una riga sola,
+troncata**, con il testo intero nel `title` per chi ci passa sopra col mouse — che sul
+desktop è quasi sempre (§1). La risposta si corregge dal dettaglio.
+
+Il testo originale non sparisce perché serve a riconoscere la nota a colpo d'occhio; è
+piccolo perché a quel punto la cosa che si legge è la risposta.
+
+Il problema che risolve: con nove note in attesa il testo originale non dice a cosa sono
+appese, e per ricollegarle bisogna riaprirle una per una.
+
+Regole che la tengono innocua, e che valgono più della domanda stessa:
+
+- **Arriva a spostamento già fatto.** Non è un passaggio obbligato, è un'occasione: se la
+  salti la nota è in `attesa` lo stesso, con il suo testo e il chip dei giorni.
+- **Si salta con Esc o con un tocco fuori**, e saltando non scrive niente nel log.
+- **Invio salva quello che c'è**, e il vuoto vale `null` — che è anche il modo di togliere
+  una risposta sbagliata. Se il valore non cambia non parte nessun evento.
+- **Annulla aspetta.** La barretta compare quando la domanda si è chiusa, o i suoi cinque
+  secondi se ne andrebbero dietro al pannello che li copre.
+- **Un campo solo, per sempre.** Aggiungerne un secondo la trasforma in un modulo, e i
+  moduli riportano la compilazione al costo dell'Excel abbandonato (§1).
+
+### Sul telefono il dettaglio è a sezioni, sul desktop no
+
+Sono due pannelli diversi di proposito, ed è la prima applicazione concreta di §1.
+
+**Desktop: foglio unico, non si tocca.** C'è spazio, c'è il mouse, si vede tutto insieme.
+
+**Telefono: una sezione per schermata**, con tre voci in fondo — Stato, Categoria, Altro —
+e le scelte fatte da **file di pulsanti alti almeno 48px**, non da campi. Il foglio unico,
+lì, era un modulo: si scorreva, si riduceva l'ingrandimento e si mirava un campo alto
+trentotto pixel.
+
+- Si apre sempre sullo **Stato**, che è il motivo per cui il dettaglio si apre.
+- La **categoria si sceglie in due passaggi**: prima le cinque aree, poi le voci di
+  quell'area. Quattordici pulsanti in una schermata non si leggono, cinque sì. I pulsanti
+  delle aree portano la stessa barretta colorata delle card, quindi sceglierli insegna
+  anche i colori (§9).
+- **I campi da scrivere stanno dietro «Altro»**, insieme all'eliminazione: erano loro a
+  costringere a scorrere, e si cercano quando servono.
+- **La cattura non cambia di una virgola**: una riga e invio, nessuno step aggiuntivo.
+  È l'unica cosa che il telefono fa davvero spesso, e non si tocca.
+
+### Il selettore di stato, e perché non è un quarto gesto
+
+Nel dettaglio, sopra la categoria, stanno i cinque stati in fila: un tocco cambia stato.
+Sul telefono è **l'unico** modo che esiste di cambiare stato, e l'unico modo di tornare
+indietro fra stati in assoluto — lo scorrimento sa fare solo `chiuso` e `corso`, non sa
+portare in `attesa`, e una nota chiusa per sbaglio, passati i cinque secondi della
+barretta, prima restava chiusa per sempre.
+
+**Non si aggiunge un quarto gesto.** Tre — destra, sinistra, sinistra lungo — sono già il
+limite di quello che una mano distingue tenendo il telefono, e un quarto verrebbe fatto al
+posto di uno degli altri tre.
+
+Sta **sopra la categoria**, che fino a qui era in cima: durante la giornata il dettaglio si
+apre per cambiare stato, mentre la categoria si corregge una volta sola, quando la nota è
+nata storta. Per lo stesso motivo il fuoco va sulla categoria **solo se la nota è ancora da
+classificare**; se no lo prende il foglio, che lascia funzionare Esc senza far scorrere
+via il selettore.
+
+Dal selettore **non compare la barretta Annulla**: starebbe sotto il pannello e non si
+potrebbe toccare, e lì non serve, perché tornare indietro è toccare lo stato di prima.
+L'unica differenza è che `rc` viene ricalcolato dalla tabella invece di essere ripristinato
+al valore esatto — che è poi lo stesso valore che avrebbe avuto arrivandoci normalmente.
+
+La domanda *cosa aspetti?* scatta anche da qui: è legata al passaggio di stato, non al
+gesto che lo produce.
+
+### Il percorso di una nota, e i giorni di fermo
+
+Il dettaglio apre su **Percorso**: quando la richiesta è arrivata, ogni cambio di stato con
+data e ora, la risposta al «cosa aspetti» con quanto è rimasta ferma, la chiusura con
+l'esito. È la risposta alla contestazione sui tempi (§1), quindi sta in cima.
+
+**È di sola lettura e non costa un tocco a nessuno.** Non è un campo: viene tutto dai `at`
+che gli eventi hanno già. `elenco()` ricostruisce lo stato finale, e lo stato finale non sa
+dire *quando*; il percorso si ricava rileggendo il log con `Store.eventi()`, in un indice
+che `app.js` rifà a ogni scrittura. Con qualche migliaio di eventi sono millisecondi, e
+vale la semplicità: nessuno stato incrementale da tenere allineato.
+
+Formato: `15/09 09:40 creata · 15/09 14:20 in attesa: conferma cliente (6 giorni) ·
+22/09 11:05 chiusa, risolto`. La durata si mostra **solo sull'attesa**: è l'unico pezzo su
+cui nasce una contestazione, e metterla su tutti farebbe rumore.
+
+**I giorni di fermo si contano dal passaggio di stato, non da `agg`.** `agg` si sposta a
+ogni correzione, quindi bastava sistemare un numero di ticket per azzerare una settimana di
+attesa — cioè per cancellare proprio il dato che serve difendere.
+
+In colonna Attesa ogni card dice **chi si aspetta** e **da quanti giorni**; oltre la
+settimana il conteggio si fa scuro. Quando la risposta manca, la riga lo dice invece di
+tacere: una nota ferma da sei giorni senza sapere di chi è il caso peggiore, non quello da
+nascondere.
+
+### Il riepilogo del cliente
+
+Filtrando per cliente compare **Riepilogo da incollare**: tutte le sue richieste, in
+ordine, ciascuna con stato attuale, categoria, piattaforma, ticket (o «nessun ticket») e il
+percorso per esteso. **Testo semplice, selezionato e pronto** — niente allegati, niente
+file generati: il gesto è copiare e incollare in una risposta, e un file ci metterebbe in
+mezzo un passaggio.
+
+Anche il percorso della singola nota si copia, dal bottone accanto a «Percorso».
 
 ### La colonna `chiuso` mostra sette giorni, non tutto
 
@@ -263,6 +465,29 @@ Scorciatoie facoltative nel testo, per chi sta già scrivendo:
 Vanno aggiunte a `brt-classificatore.js`. **Non toccare la logica di `!`/`!!`**: funziona
 già e non ha bisogno di essere riscritta per fare spazio a queste.
 
+### Il codice cliente non si indovina
+
+`cl` sono **sette cifre, e le prime tre sono la filiale**. La filiale **non si salva**: si
+ricava con `filiale(cl)`. Un dato derivabile scritto nel log è un dato che un giorno
+smentirà quello da cui deriva.
+
+**Sette cifre nude non diventano mai un codice cliente.** In un'azienda di spedizioni i
+numeri lunghi sono dappertutto — tracking, spedizioni, bolle, ticket, riferimenti del
+cliente — e riconoscerli a vista riempirebbe l'archivio di clienti che non esistono. Serve:
+
+- una parola che lo dica vicino al numero — `cliente` o `codice`, entro dodici caratteri,
+  perché «codice cliente:2245744» sì e «il cliente ha aperto il ticket 2245744» no;
+- oppure il prefisso esplicito `cl:2245744`, che sparisce dal testo come `@rossi`.
+
+Quando il numero sta dentro una frase, invece, **resta nel testo**: lì significa qualcosa
+anche per chi rilegge.
+
+Tutte le note di un cliente si guardano toccando il codice sulla card, o dal dettaglio.
+Il filtro lavora **sul campo `cl`, non sulla ricerca testuale**, che pescherebbe anche le
+note che quel numero lo nominano e basta — cioè esattamente la confusione che il
+riconoscimento stretto serve a evitare. Guardando un cliente si vede la sua storia intera,
+chiusure vecchie comprese: la finestra dei sette giorni di §6 non si applica.
+
 ### Il dizionario decide il problema, non il prodotto
 
 I termini del classificatore stanno in due classi che non si sommano mai fra loro:
@@ -343,6 +568,24 @@ il foglio definitivo — sostituiti con i valori veri, o confermati e promossi a
 Lo stesso rosso è usato dallo scorrimento che elimina (`.riga.is-elimina`), con un fondo
 carta `#fdf1ee` e un bordo `#e7b9ad` che sono anch'essi fuori palette.
 
+Stessa cosa per **i cinque colori delle aree**, sulle variabili `--area-*`, che colorano
+una barretta di 3px sul bordo sinistro della card e un pallino accanto ai nomi delle aree
+nel dettaglio — che è la loro legenda, l'unico posto dove si vedono tutti insieme:
+
+| area | valore | perché quello |
+|---|---|---|
+| Accessi | `#7b5f8c` | viola spento |
+| Portali e servizi | `#4f6d8f` | blu polvere |
+| Integrazioni e dati | `#2f7d7a` | verdazzurro |
+| Operativo | `#5d7f52` | verde oliva |
+| Sistemi | `#8a6d3b` | bruno dorato |
+
+Sono le cinque tinte più lontane fra loro che restano **fuori dalla banda del terracotta**,
+perché quello significa ritardo e non deve avere sosia. Il colore sta sull'**area e non
+sulla categoria**: quattordici tinte non si distinguono a colpo d'occhio, cinque sì. Una
+nota senza categoria tiene la barretta del colore del bordo — un'assenza, non un sesto
+colore da imparare. Il fondo della card resta carta: il colore non ci va mai sopra.
+
 Finché non arriva il foglio, sono gli unici colori dell'applicazione a non venire dal
 design: non aggiungerne altri per analogia.
 
@@ -369,9 +612,16 @@ Se pensi che una serva davvero, dillo e argomenta: non aggiungerla e basta.
 
 ### Le uniche deroghe ai campi personalizzati
 
-`src`, `ca`, `fs`, `rc` e `pf`. Servono a misurare il carico, a far riemergere le cose e
-a tenere separato il dove dal che cosa; nessuno dei cinque costa un tap alla cattura,
-perché li riempie il classificatore. Nient'altro entra per questa porta.
+`src`, `ca`, `fs`, `rc`, `pf`, `aspetto` e `cl`. Servono a misurare il carico, a far
+riemergere le cose, a tenere separato il dove dal che cosa, a dire perché una nota è ferma
+e a ritrovare la storia di un cliente. Nessuno dei sette costa un tap alla cattura: cinque
+li riempie il classificatore, `cl` pure quando il testo glielo dice, e `aspetto` si chiede
+dopo, su un passaggio di stato che avviene comunque (§6). Nient'altro entra per questa
+porta.
+
+`aspetto` è l'unico che costa una domanda, e per questo la domanda è saltabile e arriva a
+spostamento già fatto. Se un giorno la si trovasse saltata nove volte su dieci, il campo
+va tolto, non reso obbligatorio.
 
 ### `fs` è un conteggio minimo, mai una percentuale
 
@@ -414,4 +664,7 @@ Prima di dichiarare finito un pezzo, verifica che:
 4. Due dispositivi che modificano la stessa nota convergano allo stesso risultato.
 5. Ricaricare la pagina non duplichi mai un evento.
 6. Nessuna richiesta di rete parta prima che l'interfaccia sia utilizzabile.
-7. Il peso totale dell'app scaricata resti sotto i 150 KB.
+7. Il peso totale dell'app scaricata resti sotto i 150 KB. **Sono i byte trasferiti, non
+   quelli su disco:** GitHub Pages serve compresso, quindi la misura da guardare è quella
+   dei file gzippati. Oggi sono 48 KB, meno di un terzo del limite — se un giorno il conto
+   tornerà a stare stretto, si misura con `gzip -9c <file> | wc -c` prima di tagliare.

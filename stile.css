@@ -673,6 +673,14 @@ input, button { font-family: inherit; }
   font-variant-numeric: tabular-nums;
   color: var(--tenue-2);
 }
+/* Oltre la settimana si vede da lontano. Non terracotta: quello segnala il ritardo su una
+   scadenza, e un'attesa lunga su terzi non è per forza un ritardo mio — è anzi la cosa
+   che serve poter mostrare a chi contesta i tempi. */
+.nota__giorni--lunga { background: var(--testo); color: var(--carta-quieta); }
+
+/* Quando non si sa chi si aspetta, la riga lo dice: una nota ferma da sei giorni senza
+   sapere di chi è il caso peggiore, non quello da nascondere. */
+.nota__aspetto--vuoto { font-style: italic; color: var(--tenue-2); font-weight: 400; }
 
 .nota__rimanda {
   margin-left: auto; /* staccato dai chip: è un'azione, non un'etichetta */
@@ -1101,6 +1109,104 @@ input, button { font-family: inherit; }
 }
 .passo-tab.is-attivo { background: var(--testo); color: var(--carta-quieta); }
 
+/* ─── Percorso ───────────────────────────────────────────────────────────── */
+/* La cronologia: sola lettura, e sta in alto perché è la risposta alla contestazione
+   sui tempi, non una nota a piè di pagina. */
+
+.dettaglio__sezione--percorso {
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--bordo-carta);
+}
+
+.dettaglio__copia {
+  flex: none;
+  padding: 2px 9px;
+  border: 1px solid var(--bordo);
+  border-radius: var(--r-piccolo);
+  background: var(--carta-quieta);
+  font: 500 11px var(--font);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--tenue-2);
+  cursor: pointer;
+}
+.dettaglio__copia:hover { background: var(--quieto-3); }
+
+.percorso {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.percorso__passo {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  padding-left: 11px;
+  /* Una linea verticale che tiene insieme i passi: è un percorso, non un elenco. */
+  border-left: 2px solid var(--bordo);
+}
+.percorso__passo[data-stato="attesa"] { border-left-color: var(--bordo-scuro); }
+.percorso__passo[data-stato="chiuso"] { border-left-color: var(--testo); }
+
+.percorso__quando {
+  flex: none;
+  font: 500 11.5px var(--mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--tenue-2);
+}
+.percorso__cosa {
+  flex: 1;
+  min-width: 0;
+  font: 400 12.5px/1.35 var(--font);
+  color: var(--testo-2);
+  overflow-wrap: anywhere;
+}
+.percorso__durata {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: var(--r-minimo);
+  background: var(--quieto-3);
+  font: 500 11px var(--font);
+  color: var(--tenue-2);
+  white-space: nowrap;
+}
+
+/* ─── Riepilogo del cliente ──────────────────────────────────────────────── */
+
+.riepilogo__foglio { max-width: 720px; }
+
+.riepilogo__testo {
+  width: 100%;
+  min-height: 46vh;
+  resize: vertical;
+  padding: 12px;
+  border: 1px solid var(--bordo);
+  border-radius: var(--r-medio);
+  background: var(--carta-quieta);
+  font: 12px/1.55 var(--mono);
+  color: var(--testo-2);
+  white-space: pre;
+  overflow-x: auto;
+}
+.riepilogo__testo:focus { outline: none; border-color: var(--bordo-scuro); }
+
+.ricerca__riepilogo {
+  flex: none;
+  padding: 4px 9px;
+  border: 1px solid var(--bordo-scuro);
+  border-radius: var(--r-piccolo);
+  background: var(--carta);
+  font: 500 11.5px var(--font);
+  color: var(--testo-2);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ricerca__riepilogo:hover { background: var(--quieto-3); }
+
 .guasto {
   margin: 0;
   padding: 16px 18px;
@@ -1231,6 +1337,10 @@ input, button { font-family: inherit; }
     font-size: 14px;
   }
   .categoria-scelta__nome { max-width: 150px; }
+
+  /* Su schermo stretto il percorso va a capo invece di stringere le date. */
+  .percorso__passo { flex-wrap: wrap; gap: 4px 8px; }
+  .riepilogo__testo { min-height: 40vh; font-size: 11px; }
 
   /* La domanda resta una finestrella, non diventa un foglio: sale la tastiera e deve
      starci sopra. `padding` va riportato perché `.dettaglio` qui lo azzera. */
