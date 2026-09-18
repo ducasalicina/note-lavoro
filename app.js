@@ -207,6 +207,12 @@ function costruisciPercorsi(eventi) {
     }
     const passi = m.get(e.id);
     if (!passi) continue; // un `upd` prima del suo `new`: lo ignora, come fa `rigioca()`
+    // Il diario si mescola ai passaggi di stato, non sta in una sezione sua: gli eventi
+    // arrivano già ordinati per `at`, quindi basta accodarlo dove capita.
+    if (e.ev === 'diario') {
+      passi.push({ at: e.at, diario: e.d });
+      continue;
+    }
     const p = e.p || {};
     // Il ripristino di una nota eliminata riscrive `creato` con una patch, perché il
     // `new` porterebbe l'ora del ripristino: il percorso deve seguirlo, o direbbe che
@@ -216,9 +222,12 @@ function costruisciPercorsi(eventi) {
     if (p.aspetto) {
       // La risposta al «cosa aspetti» arriva con un evento suo, subito dopo lo
       // spostamento: si attacca a quel passo invece di diventarne uno in più.
-      const ultimo = passi[passi.length - 1];
-      if (ultimo && ultimo.stato === 'attesa') ultimo.aspetto = p.aspetto;
-      else passi.push({ at: e.at, stato: 'attesa', testo: NOME_PASSO.attesa, aspetto: p.aspetto });
+      // Si attacca solo alla PRIMA risposta dopo lo spostamento. Se ne arriva un'altra
+      // dopo, diventa un passo suo: sovrascrivendo, la risposta di prima sparirebbe anche
+      // dal percorso, ed è proprio quello che non deve succedere.
+      const ultimo = [...passi].reverse().find((x) => x.stato);
+      if (ultimo && ultimo.stato === 'attesa' && !ultimo.aspetto) ultimo.aspetto = p.aspetto;
+      else passi.push({ at: e.at, stato: 'attesa', testo: 'in attesa di', aspetto: p.aspetto });
     }
     if (p.esito) {
       const chiusura = [...passi].reverse().find((x) => x.stato === 'chiuso');
@@ -229,6 +238,8 @@ function costruisciPercorsi(eventi) {
 }
 
 const passiDi = (id) => percorsi.get(id) || [];
+const righeDiario = (id) => passiDi(id).filter((p) => p.diario);
+const testoDiario = (id) => righeDiario(id).map((p) => p.diario).join(' ');
 
 /** Da quando la nota è nello stato in cui sta adesso. `agg` non va bene: si sposta a ogni
  *  correzione, quindi bastava sistemare un ticket per azzerare una settimana di attesa. */
@@ -252,12 +263,15 @@ function giorniTesto(g) {
  *  cui nasce una contestazione, e metterlo su tutti farebbe rumore. */
 function durataPasso(passi, i) {
   if (passi[i].stato !== 'attesa') return null;
-  const dopo = passi[i + 1];
+  // Il prossimo CAMBIO DI STATO, non il prossimo passo: in mezzo ci sono le righe di
+  // diario, e contando fino a quelle un'attesa di otto giorni ne misurerebbe uno.
+  const dopo = passi.slice(i + 1).find((p) => p.stato);
   const g = Math.round(((dopo ? dopo.at : Date.now()) - passi[i].at) / 86400000);
   return dopo ? giorniTesto(g) : `${giorniTesto(g)}, ancora ferma`;
 }
 
 function testoPasso(p) {
+  if (p.diario) return p.diario;
   let t = p.testo;
   if (p.aspetto) t += `: ${p.aspetto}`;
   if (p.esito) t += `, ${p.esito}`;
@@ -320,7 +334,8 @@ function visibili(chiave) {
     if (chiave === 'chiuso' && !q && !cliente && giorniDa(n.agg) > GIORNI_CHIUSO) return false;
     if (scelta && !scelta.test(n)) return false;
     if (!q) return true;
-    const dove = [n.testo, n.aspetto || '', n.da || '', n.cat || '', n.cl || '', n.ticket || '', (n.tag || []).join(' ')].join(' ');
+    const dove = [n.testo, n.aspetto || '', n.da || '', n.cat || '', n.cl || '',
+      n.ticket || '', (n.tag || []).join(' '), testoDiario(n.id)].join(' ');
     return dove.toLowerCase().includes(q);
   });
 }
@@ -496,6 +511,8 @@ function disegnaNota(n) {
     const sc = etichettaScadenza(n.scadenza);
     if (sc) meta.append(nodo('span', `scadenza ${sc.classe}`.trim(), sc.testo));
   }
+  const diario = righeDiario(n.id);
+  if (diario.length) meta.append(chipDiario(diario));
   if (n.cl) meta.append(bottoneCliente(n));
   if (n.da) meta.append(nodo('span', 'nota__da', n.da));
   if (n.priorita > 0 && n.stato !== 'chiuso') meta.append(nodo('span', 'nota__priorita', n.priorita > 1 ? '!!' : '!'));
@@ -649,6 +666,15 @@ function chipFermo(n, conParola = false) {
   const entrata = [...passi].reverse().find((p) => p.stato);
   e.title = `In attesa dal ${entrata ? dataOra(entrata.at) : '—'}, ${giorniTesto(g)}`
     + (n.aspetto ? ` — si aspetta: ${n.aspetto}` : ' — di chi si aspetti non è scritto');
+  return e;
+}
+
+/** Quante righe di diario ha una nota. È la differenza fra una ferma da otto giorni con
+ *  tre solleciti dentro e una dimenticata: sul board si vedevano uguali. */
+function chipDiario(diario) {
+  const e = nodo('span', 'nota__diario', `${diario.length} in diario`);
+  const ultima = diario[diario.length - 1];
+  e.title = `Ultima: ${dataOra(ultima.at)} — ${ultima.diario}`;
   return e;
 }
 
@@ -833,8 +859,7 @@ async function chiudiAttesa(salva) {
   attesaPoi = null;
   $('#attesa').hidden = true;
 
-  const n = id != null ? tutte().find((x) => x.id === id) : null;
-  if (salva && n && (n.aspetto || null) !== risposta) await correggi(id, { aspetto: risposta });
+  if (salva && id != null) await cambiaAspetto(id, risposta);
   if (poi) poi();
 }
 
@@ -949,7 +974,7 @@ function disegnaDettaglio() {
   // Sul desktop la cronologia sta subito sotto il testo, perché è la storia di questa
   // richiesta e si legge insieme a lei. Sul telefono sta in cima ad «Altro», che è dove
   // si va a cercare: lì il dettaglio si apre per cambiare stato (§1, una nota su 17).
-  if (desktop()) foglio.append(sezioneCronologia(n), ...sezioniDesktop(n));
+  if (desktop()) foglio.append(sezioneCronologia(n), sezioneDiario(n), ...sezioniDesktop(n));
   else foglio.append(passoCorrente(n), barraPassi());
 
   const p = $('#dettaglio');
@@ -974,7 +999,7 @@ function campiComuni(n) {
   // La risposta alla domanda si corregge qui, o non si correggerebbe più: la domanda
   // arriva una volta sola, allo spostamento.
   if (n.stato === 'attesa') {
-    campi.push(campoTesto('Cosa aspetti', n.aspetto || '', 'chi o cosa tiene ferma la nota', (v) => correggi(n.id, { aspetto: v || null })));
+    campi.push(campoTesto('Cosa aspetti', n.aspetto || '', 'chi o cosa tiene ferma la nota', (v) => cambiaAspetto(n.id, v || null)));
   }
   if (n.stato === 'chiuso') campi.push(sezioneEsito(n));
   return campi;
@@ -1001,7 +1026,7 @@ function sezioneCronologia(n) {
 
   const elenco = nodo('ol', 'percorso');
   passi.forEach((p, i) => {
-    const riga = nodo('li', 'percorso__passo');
+    const riga = nodo('li', `percorso__passo${p.diario ? ' percorso__passo--diario' : ''}`);
     if (p.stato) riga.dataset.stato = p.stato;
     riga.append(nodo('span', 'percorso__quando', dataOra(p.at)));
     riga.append(nodo('span', 'percorso__cosa', testoPasso(p)));
@@ -1011,6 +1036,59 @@ function sezioneCronologia(n) {
   });
   sez.append(elenco);
   return sez;
+}
+
+/** Il diario: una riga che si aggiunge, con la sua data e ora.
+ *
+ *  Registra cosa succede DENTRO uno stato — sollecitato, il cliente ha risposto, girato a
+ *  un altro — che i passaggi di stato non sanno dire: senza, una nota ferma otto giorni
+ *  con tre solleciti dentro sembra identica a una dimenticata.
+ *
+ *  Un campo e invio. Nessuna conferma, nessun modale: è una riga, non un modulo. E non
+ *  c'è un elenco qui sotto, perché le righe si leggono nel percorso, mescolate ai cambi
+ *  di stato in ordine di tempo — che è il punto. */
+function sezioneDiario(n) {
+  const sez = nodo('section', 'dettaglio__sezione');
+  const testa = nodo('div', 'dettaglio__etichetta');
+  testa.append(nodo('span', null, 'Diario'));
+  testa.append(nodo('span', 'dettaglio__attuale', 'invio per aggiungere'));
+  sez.append(testa);
+
+  const i = document.createElement('input');
+  i.type = 'text';
+  i.className = 'dettaglio__campo diario__campo';
+  i.placeholder = 'sollecitato, il cliente ha risposto, girato a…';
+  i.autocomplete = 'off';
+  i.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    const testo = i.value.trim();
+    if (!testo) return;
+    i.value = '';
+    annotaNota(n.id, testo);
+  });
+  sez.append(i);
+  sez.append(nodo('div', 'dettaglio__nota',
+    'Ogni riga è un evento nel log: si aggiunge, non sostituisce, e compare nel percorso qui sopra alla sua ora.'));
+  return sez;
+}
+
+async function annotaNota(id, testo) {
+  await Store.annota(id, testo);
+  await ridisegna();
+  // Il pannello si è appena ridisegnato: il campo è nuovo e il fuoco se n'era andato.
+  // Chi annota spesso ne scrive due o tre di fila.
+  $('#dettaglio .diario__campo')?.focus();
+}
+
+/** La risposta al «cosa aspetti» si sovrascrive, ma quella di prima non deve sparire:
+ *  finisce nel diario, datata al momento in cui ha smesso di valere. Così la cronologia
+ *  tiene tutte e due — cosa aspettavo allora e cosa aspetto adesso. */
+async function cambiaAspetto(id, nuovo) {
+  const n = tutte().find((x) => x.id === id);
+  const vecchio = n?.aspetto || null;
+  if (vecchio === (nuovo || null)) return;
+  if (vecchio) await Store.annota(id, `prima aspettavo: ${vecchio}`);
+  await correggi(id, { aspetto: nuovo || null });
 }
 
 /** Negli appunti, e se il browser non lascia scrivere si ripiega sulla selezione: in
@@ -1061,7 +1139,7 @@ function passoCorrente(n) {
   const corpo = nodo('div', 'passo');
   if (passo === 'stato') corpo.append(passoStato(n));
   else if (passo === 'categoria') corpo.append(passoCategoria(n));
-  else corpo.append(sezioneCronologia(n), ...campiComuni(n), sezioneElimina(n));
+  else corpo.append(sezioneCronologia(n), sezioneDiario(n), ...campiComuni(n), sezioneElimina(n));
   return corpo;
 }
 

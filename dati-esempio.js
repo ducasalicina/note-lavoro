@@ -62,10 +62,15 @@ const ESEMPI = [
   { riga: '! mybrt pagina bianca al salvataggio @ferrini',
     nata: -2, passi: [{ g: -1, stato: 'corso', ora: 11 }], rc: 3, src: 'app', fs: 1 },
 
-  // Le due attese lunghe: sono il caso su cui nascono le contestazioni.
+  /* Le due attese lunghe: sono il caso su cui nascono le contestazioni. La prima è
+     seguita — tre righe di diario dentro l'attesa — la seconda è ferma e basta. Sul
+     board e nel percorso devono vedersi diverse: è il motivo per cui il diario esiste. */
   { riga: '@longhi sollecito ticket it erp per la porta verso il gestionale',
     nata: -14, passi: [{ g: -13, stato: 'dafare' }, { g: -11, stato: 'corso' },
                        { g: -9, stato: 'attesa', aspetto: 'risposta di IT ERP sul ticket INC-4412' }],
+    diario: [{ g: -7, ora: 9, t: 'sollecitato IT ERP in chat, dicono che guardano' },
+             { g: -4, ora: 15, t: 'secondo sollecito, alzato a priorità alta da loro' },
+             { g: -1, ora: 10, t: 'terzo sollecito, mi hanno chiesto la porta esatta e gliel\'ho data' }],
     rc: -5, src: 'bookmarklet', ticket: 'INC-4412' },
   { riga: 'Manca record nella trasmissione di ieri, segnalazione secondo procedura',
     nata: -8, passi: [{ g: -8, stato: 'corso', ora: 14 },
@@ -74,10 +79,14 @@ const ESEMPI = [
 
   { riga: 'Notifica sms al destinatario non parte, tracking fermo',
     nata: -6, passi: [{ g: -5, stato: 'corso' }, { g: -2, stato: 'chiuso', esito: 'risolto' }], src: 'app' },
+  /* Qui l'attesa cambia oggetto strada facendo: la prima risposta resta nel percorso e
+     la seconda le si aggiunge, invece di cancellarla. */
   { riga: 'Utenza ftp del fornitore scaduta, file non arrivato',
     nata: -12, passi: [{ g: -11, stato: 'corso' },
                        { g: -10, stato: 'attesa', aspetto: 'credenziali nuove dal fornitore' },
+                       { g: -7, stato: 'attesa', aspetto: 'che il fornitore risponda al nostro referente' },
                        { g: -4, stato: 'chiuso', esito: 'girato' }],
+    diario: [{ g: -8, ora: 11, t: 'il fornitore non risponde alla casella di assistenza' }],
     src: 'bookmarklet', ticket: 'REQ-2187' },
   { riga: '@longhi chiedeva se fermopoint copre anche i resi del marketplace',
     nata: -3, passi: [{ g: -3, stato: 'chiuso', esito: 'risposto', ora: 16 }], src: 'app' },
@@ -95,6 +104,11 @@ export async function seminaEsempi() {
     const primo = { src: e.src, fs: e.fs || 0, pf: parse(e.riga).pf };
     if (e.ticket) primo.ticket = e.ticket;
     await Store.modifica(nota.id, primo, nato + 60_000);
+
+    // Le righe di diario: eventi a sé, sparsi fra i passaggi di stato.
+    for (const r of e.diario || []) {
+      await Store.annota(nota.id, r.t, quando(r.g, r.ora ?? 10, 20));
+    }
 
     for (const p of e.passi) {
       const t = quando(p.g, p.ora ?? 11, 5);

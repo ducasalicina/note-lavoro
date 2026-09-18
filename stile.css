@@ -695,6 +695,19 @@ input, button { font-family: inherit; }
 }
 .nota__rimanda:hover { background: var(--quieto-3); }
 
+/* Quante righe di diario ha la nota: una seguita e una dimenticata, sul board, si
+   vedevano uguali. */
+.nota__diario {
+  flex: none;
+  padding: 2px 7px;
+  border: 1px dashed var(--bordo);
+  border-radius: var(--r-minimo);
+  font: 400 11.5px var(--font);
+  font-variant-numeric: tabular-nums;
+  color: var(--tenue-2);
+  white-space: nowrap;
+}
+
 /* Il codice cliente: cifre, quindi tabellari, e cliccabile perché la domanda che uno si
    fa guardandolo è sempre «cos'altro ha aperto questo cliente?». */
 .nota__cliente {
@@ -1150,6 +1163,10 @@ input, button { font-family: inherit; }
   border-left: 2px solid var(--bordo);
 }
 .percorso__passo[data-stato="attesa"] { border-left-color: var(--bordo-scuro); }
+/* Una riga di diario non è un passaggio: è qualcosa che è successo mentre la nota stava
+   ferma. Tratteggio e testo più quieto la distinguono senza separarla. */
+.percorso__passo--diario { border-left-style: dashed; }
+.percorso__passo--diario .percorso__cosa { color: var(--tenue); }
 .percorso__passo[data-stato="chiuso"] { border-left-color: var(--testo); }
 
 .percorso__quando {

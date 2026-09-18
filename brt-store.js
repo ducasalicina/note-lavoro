@@ -134,6 +134,21 @@ export async function modifica(id, patch, at) {
   return stato.get(id);
 }
 
+/** Una riga di diario: cosa è successo DENTRO uno stato — sollecitato, il cliente ha
+ *  risposto, girato a un altro.
+ *
+ *  È un evento a sé, `ev:'diario'`, e **non una patch**: `rigioca()` lo ignora di
+ *  proposito, perché non cambia lo stato della nota. Vive nel log e lo legge il percorso,
+ *  che i timestamp li ha già.
+ *
+ *  Un evento per riga, e non un array dentro un `upd`, per due motivi: si aggiunge invece
+ *  di riscrivere tutta la storia ogni volta, e due dispositivi che annotano lo stesso
+ *  giorno non si cancellano a vicenda — con l'array, l'ultima scrittura vince e una delle
+ *  due righe sparisce. */
+export async function annota(id, testo, at) {
+  await registra({ ev: 'diario', id, at, d: testo });
+}
+
 export async function elimina(id) {
   await registra({ ev: 'del', id });
 }
